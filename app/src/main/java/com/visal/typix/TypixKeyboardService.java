@@ -11,140 +11,221 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class TypixKeyboardService extends InputMethodService {
 
-    private LinearLayout keyboard;
-    private boolean sinhalaMode = true;
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
 
-    private final Map<String, String> phonetic = new HashMap<>();
+    private GradientDrawable keyBackground() {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.rgb(28, 43, 57));
+        bg.setCornerRadius(dp(8));
+        return bg;
+    }
+
+    private Button createKey(String text) {
+        Button button = new Button(this);
+
+        button.setText(text);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(18);
+        button.setGravity(Gravity.CENTER);
+        button.setAllCaps(false);
+        button.setPadding(0, 0, 0, 0);
+        button.setBackground(keyBackground());
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(52),
+                        1
+                );
+
+        params.setMargins(dp(2), dp(2), dp(2), dp(2));
+        button.setLayoutParams(params);
+
+        button.setOnClickListener(v -> {
+            InputConnection ic = getCurrentInputConnection();
+
+            if (ic != null) {
+                ic.commitText(text, 1);
+            }
+        });
+
+        return button;
+    }
+
+    private Button createSpecialKey(String text, View.OnClickListener listener) {
+        Button button = new Button(this);
+
+        button.setText(text);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(18);
+        button.setGravity(Gravity.CENTER);
+        button.setAllCaps(false);
+        button.setPadding(0, 0, 0, 0);
+        button.setBackground(keyBackground());
+        button.setOnClickListener(listener);
+
+        LinearLayout.LayoutParams params =
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(52),
+                        1
+                );
+
+        params.setMargins(dp(2), dp(2), dp(2), dp(2));
+        button.setLayoutParams(params);
+
+        return button;
+    }
+
+    private LinearLayout createRow() {
+        LinearLayout row = new LinearLayout(this);
+
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        row.setPadding(dp(2), 0, dp(2), 0);
+
+        return row;
+    }
+
+    private void addKey(LinearLayout row, String text) {
+        row.addView(createKey(text));
+    }
 
     @Override
     public View onCreateInputView() {
-        createPhoneticMap();
 
-        keyboard = new LinearLayout(this);
+        LinearLayout keyboard = new LinearLayout(this);
+
         keyboard.setOrientation(LinearLayout.VERTICAL);
-        keyboard.setPadding(6, 6, 6, 6);
-        keyboard.setBackgroundColor(Color.rgb(12, 20, 30));
+        keyboard.setPadding(dp(4), dp(6), dp(4), dp(6));
+        keyboard.setBackgroundColor(Color.rgb(10, 20, 29));
 
-        createToolbar();
-        createSinhalaKeys();
-        createBottomRow();
-
-        return keyboard;
-    }
-
-    private void createToolbar() {
-        LinearLayout bar = new LinearLayout(this);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
+        // Header
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(10), 0, dp(10), dp(4));
 
         TextView logo = new TextView(this);
         logo.setText("Typix");
-        logo.setTextColor(Color.rgb(60, 180, 255));
-        logo.setTextSize(20);
+        logo.setTextColor(Color.rgb(30, 170, 240));
+        logo.setTextSize(22);
         logo.setGravity(Gravity.CENTER);
 
-        bar.addView(logo, new LinearLayout.LayoutParams(
-                0, 55, 1
-        ));
+        header.addView(
+                logo,
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(42),
+                        1
+                )
+        );
 
-        Button emoji = smallButton("☺");
-        Button language = smallButton("සි | En");
-        Button settings = smallButton("⚙");
+        keyboard.addView(header);
 
-        emoji.setOnClickListener(v -> {
+        // Row 1
+        LinearLayout row1 = createRow();
+
+        addKey(row1, "අ");
+        addKey(row1, "ආ");
+        addKey(row1, "ඉ");
+        addKey(row1, "ඊ");
+        addKey(row1, "උ");
+        addKey(row1, "ඌ");
+        addKey(row1, "එ");
+        addKey(row1, "ඒ");
+
+        keyboard.addView(row1);
+
+        // Row 2
+        LinearLayout row2 = createRow();
+
+        addKey(row2, "ඔ");
+        addKey(row2, "ඕ");
+        addKey(row2, "ක");
+        addKey(row2, "ග");
+        addKey(row2, "ච");
+        addKey(row2, "ජ");
+        addKey(row2, "ට");
+        addKey(row2, "ඩ");
+
+        keyboard.addView(row2);
+
+        // Row 3
+        LinearLayout row3 = createRow();
+
+        addKey(row3, "ත");
+        addKey(row3, "ද");
+        addKey(row3, "න");
+        addKey(row3, "ප");
+        addKey(row3, "බ");
+        addKey(row3, "ම");
+        addKey(row3, "ය");
+        addKey(row3, "ර");
+
+        keyboard.addView(row3);
+
+        // Row 4
+        LinearLayout row4 = createRow();
+
+        addKey(row4, "ල");
+        addKey(row4, "ව");
+        addKey(row4, "ස");
+        addKey(row4, "හ");
+        addKey(row4, "ළ");
+        addKey(row4, "ණ");
+
+        Button backspace = createSpecialKey("⌫", v -> {
             InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.commitText("😊", 1);
-        });
 
-        language.setOnClickListener(v -> {
-            sinhalaMode = !sinhalaMode;
-            rebuildKeyboard();
-        });
-
-        settings.setOnClickListener(v -> {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.commitText(" ", 1);
-        });
-
-        bar.addView(emoji);
-        bar.addView(language);
-        bar.addView(settings);
-
-        keyboard.addView(bar);
-    }
-
-    private void createSinhalaKeys() {
-
-        String[][] rows = {
-                {"අ", "ආ", "ඇ", "ඈ", "ඉ", "ඊ", "උ", "ඌ", "එ", "ඒ"},
-                {"ඔ", "ඕ", "ක", "ඛ", "ග", "ඝ", "ච", "ජ", "ට", "ඩ"},
-                {"ණ", "ත", "ද", "න", "ප", "බ", "ම", "ය", "ර", "ල"},
-                {"ව", "ශ", "ෂ", "ස", "හ", "ළ", "ෆ", "ං", "ඃ", "්"}
-        };
-
-        for (String[] row : rows) {
-            LinearLayout line = new LinearLayout(this);
-            line.setOrientation(LinearLayout.HORIZONTAL);
-
-            for (String key : row) {
-                addKey(line, key);
+            if (ic != null) {
+                ic.deleteSurroundingText(1, 0);
             }
+        });
 
-            keyboard.addView(line);
-        }
-    }
+        row4.addView(backspace);
 
-    private void createEnglishKeys() {
+        keyboard.addView(row4);
 
-        String[][] rows = {
-                {"Q","W","E","R","T","Y","U","I","O","P"},
-                {"A","S","D","F","G","H","J","K","L"},
-                {"Z","X","C","V","B","N","M"}
-        };
+        // Bottom row
+        LinearLayout bottom = createRow();
 
-        for (String[] row : rows) {
-            LinearLayout line = new LinearLayout(this);
-            line.setOrientation(LinearLayout.HORIZONTAL);
+        Button number = createSpecialKey("123", v -> {
+            InputConnection ic = getCurrentInputConnection();
 
-            for (String key : row) {
-                addKey(line, key);
+            if (ic != null) {
+                ic.commitText("123", 1);
             }
-
-            keyboard.addView(line);
-        }
-    }
-
-    private void createBottomRow() {
-
-        LinearLayout line = new LinearLayout(this);
-        line.setGravity(Gravity.CENTER);
-
-        Button number = smallButton("?123");
-        Button space = smallButton("SPACE");
-        Button backspace = smallButton("⌫");
-        Button enter = smallButton("↵");
-
-        number.setOnClickListener(v -> {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.commitText("123", 1);
         });
 
-        space.setOnClickListener(v -> {
+        bottom.addView(number);
+
+        Button space = createSpecialKey("සිංහල", v -> {
             InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.commitText(" ", 1);
+
+            if (ic != null) {
+                ic.commitText(" ", 1);
+            }
         });
 
-        backspace.setOnClickListener(v -> {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.deleteSurroundingText(1, 0);
-        });
+        LinearLayout.LayoutParams spaceParams =
+                new LinearLayout.LayoutParams(
+                        0,
+                        dp(52),
+                        4
+                );
 
-        enter.setOnClickListener(v -> {
+        spaceParams.setMargins(dp(2), dp(2), dp(2), dp(2));
+        space.setLayoutParams(spaceParams);
+
+        bottom.addView(space);
+
+        Button enter = createSpecialKey("↵", v -> {
             InputConnection ic = getCurrentInputConnection();
+
             if (ic != null) {
                 ic.sendKeyEvent(
                         new android.view.KeyEvent(
@@ -155,110 +236,10 @@ public class TypixKeyboardService extends InputMethodService {
             }
         });
 
-        line.addView(number);
-        line.addView(space, new LinearLayout.LayoutParams(0, 60, 2));
-        line.addView(backspace);
-        line.addView(enter);
+        bottom.addView(enter);
 
-        keyboard.addView(line);
-    }
+        keyboard.addView(bottom);
 
-    private void addKey(LinearLayout row, String text) {
-
-        Button button = smallButton(text);
-
-        button.setOnClickListener(v -> {
-
-            InputConnection ic = getCurrentInputConnection();
-
-            if (ic == null) return;
-
-            if (sinhalaMode) {
-                ic.commitText(text, 1);
-            } else {
-                ic.commitText(text.toLowerCase(), 1);
-            }
-        });
-
-        row.addView(button, new LinearLayout.LayoutParams(
-                0,
-                58,
-                1
-        ));
-    }
-
-    private Button smallButton(String text) {
-
-        Button button = new Button(this);
-
-        button.setText(text);
-        button.setTextSize(15);
-        button.setTextColor(Color.WHITE);
-        button.setGravity(Gravity.CENTER);
-        button.setAllCaps(false);
-
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.rgb(28, 42, 55));
-        bg.setCornerRadius(14);
-
-        button.setBackground(bg);
-
-        LinearLayout.LayoutParams params =
-                new LinearLayout.LayoutParams(
-                        65,
-                        58
-                );
-
-        params.setMargins(3, 3, 3, 3);
-
-        button.setLayoutParams(params);
-
-        return button;
-    }
-
-    private void rebuildKeyboard() {
-
-        keyboard.removeAllViews();
-
-        createToolbar();
-
-        if (sinhalaMode) {
-            createSinhalaKeys();
-        } else {
-            createEnglishKeys();
-        }
-
-        createBottomRow();
-    }
-
-    private void createPhoneticMap() {
-
-        phonetic.put("a", "අ");
-        phonetic.put("aa", "ආ");
-        phonetic.put("i", "ඉ");
-        phonetic.put("ii", "ඊ");
-        phonetic.put("u", "උ");
-        phonetic.put("uu", "ඌ");
-
-        phonetic.put("ka", "ක");
-        phonetic.put("ga", "ග");
-        phonetic.put("cha", "ච");
-        phonetic.put("ja", "ජ");
-
-        phonetic.put("ta", "ට");
-        phonetic.put("da", "ඩ");
-        phonetic.put("na", "න");
-
-        phonetic.put("pa", "ප");
-        phonetic.put("ba", "බ");
-        phonetic.put("ma", "ම");
-
-        phonetic.put("ya", "ය");
-        phonetic.put("ra", "ර");
-        phonetic.put("la", "ල");
-
-        phonetic.put("wa", "ව");
-        phonetic.put("sa", "ස");
-        phonetic.put("ha", "හ");
+        return keyboard;
     }
 }
