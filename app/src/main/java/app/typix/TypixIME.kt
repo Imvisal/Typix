@@ -64,9 +64,9 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         bar.addView(tabEn, LinearLayout.LayoutParams(-2, dp(34)))
         bar.addView(tabSi, LinearLayout.LayoutParams(-2, dp(34)).apply { leftMargin = dp(4) })
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        val kinds = listOf(IconView.EMOJI, IconView.CLIP, IconView.EDIT, IconView.TUNE, IconView.GLOBE)
+        val kinds = listOf(IconView.EMOJI, IconView.CLIP, IconView.EDIT, IconView.TUNE)
         icons = kinds.mapIndexed { i, k ->
-            IconView(this, k, th.text).apply { setOnClickListener { when (i) { 0, 1, 2 -> togglePanel(i + 1); 3 -> openApp(); else -> switchKeyboard() } } }
+            IconView(this, k, th.text).apply { setOnClickListener { when (i) { 0, 1, 2 -> togglePanel(i + 1); else -> openApp() } } }
         }
         for (v in icons) bar.addView(v, LinearLayout.LayoutParams(dp(42), dp(40)))
         root.addView(bar, LinearLayout.LayoutParams(-1, dp(42)))
@@ -96,13 +96,19 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         }
     }
 
+    private val quickEmoji = listOf("😂", "❤️", "😊", "🙏", "👍", "😍", "😭")
     private fun updateStrip() {
         strip.removeAllViews()
-        if (!sinhala || secure || buf.isEmpty()) return
-        Dict.suggest(buf.toString()).forEachIndexed { i, w ->
-            if (i > 0) strip.addView(View(this).apply { setBackgroundColor(th.key) }, LinearLayout.LayoutParams(dp(1), dp(20)))
-            strip.addView(cell(w, 18f, if (i == 0) th.accent else th.text) { pick(w) }, LinearLayout.LayoutParams(0, -1, 1f))
+        if (secure) return
+        if (sinhala && buf.isNotEmpty()) {
+            Dict.suggest(buf.toString()).forEachIndexed { i, w ->
+                if (i > 0) strip.addView(View(this).apply { setBackgroundColor(th.key) }, LinearLayout.LayoutParams(dp(1), dp(20)))
+                strip.addView(cell(w, 18f, if (i == 0) th.accent else th.text) { pick(w) }, LinearLayout.LayoutParams(0, -1, 1f))
+            }
+            return
         }
+        for (e in (Prefs.recent(this) + quickEmoji).distinct().take(7))
+            strip.addView(cell(e, 22f, th.text) { commit(e) }, LinearLayout.LayoutParams(0, -1, 1f))
     }
 
     private fun showKeys() { panel = 0; body.removeAllViews(); keys?.let { body.addView(it) }; refreshIcons() }
@@ -251,4 +257,6 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     override fun onEnter() { flush(); sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER) }
+    override fun onLang() = setLang(!sinhala)
+    override fun onPicker() = switchKeyboard()
 }

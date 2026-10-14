@@ -21,6 +21,7 @@ class LogoView(ctx: Context, private val accent: Int) : View(ctx) {
         p.style = Paint.Style.STROKE; p.strokeWidth = 11f; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
         p.color = accent; c.drawPath(a, p); c.drawPath(b, p)
         p.style = Paint.Style.FILL; p.color = 0xFFEEF1FF.toInt(); c.drawRoundRect(78f, 46f, 85f, 78f, 3.5f, 3.5f, p)
+        p.color = accent; c.drawRoundRect(44f, 85f, 76f, 90f, 2.5f, 2.5f, p)
         c.restore()
     }
 }

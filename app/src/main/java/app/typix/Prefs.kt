@@ -13,6 +13,7 @@ class Theme(val name: String, val bg: Int, val key: Int, val accent: Int, val te
 /** App-private SharedPreferences (nothing leaves the phone). */
 object Prefs {
     val themes = listOf(
+        Theme("Slate", 0xFF1E2A32.toInt(), 0xFF2C3B46.toInt(), 0xFF7FD6C2.toInt(), 0xFFEAF0F4.toInt()),
         Theme("Ink", 0xFF0E1224.toInt(), 0xFF2A3262.toInt(), 0xFFC8F135.toInt(), 0xFFEEF1FF.toInt()),
         Theme("Paper", 0xFFE6E9F5.toInt(), 0xFFFFFFFF.toInt(), 0xFF2B3BFF.toInt(), 0xFF1A1F3A.toInt()),
         Theme("Ocean", 0xFF0B2540.toInt(), 0xFF14395F.toInt(), 0xFF4CC9F0.toInt(), 0xFFEEF1FF.toInt()),
@@ -26,7 +27,7 @@ object Prefs {
     fun setHeightIdx(c: Context, i: Int) = sp(c).edit().putInt("height", i).apply()
     fun rowDp(c: Context) = heights[heightIdx(c)].second
     private fun sp(c: Context) = c.getSharedPreferences("typix", Context.MODE_PRIVATE)
-    fun theme(c: Context): Theme { val n = sp(c).getString("theme", "Ink"); return themes.firstOrNull { it.name == n } ?: themes[0] }
+    fun theme(c: Context): Theme { val n = sp(c).getString("theme", "Slate"); return themes.firstOrNull { it.name == n } ?: themes[0] }
     fun setTheme(c: Context, n: String) = sp(c).edit().putString("theme", n).apply()
     fun bool(c: Context, k: String, def: Boolean) = sp(c).getBoolean(k, def)
     fun setBool(c: Context, k: String, v: Boolean) = sp(c).edit().putBoolean(k, v).apply()
