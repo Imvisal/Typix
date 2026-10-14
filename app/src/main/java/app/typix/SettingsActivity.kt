@@ -50,12 +50,17 @@ class SettingsActivity : Activity() {
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     override fun onResume() { super.onResume(); show(tab) }
 
-    private val pageBg = 0xFFF3F5F9.toInt()
-    private val line = 0xFFE3E7EF.toInt()
-    private val ink = 0xFF0F172A.toInt()
-    private val soft = 0xFF64748B.toInt()
-    private val navy = 0xFF0E1224.toInt()
+    private var dark = false
     private val white = 0xFFFFFFFF.toInt()
+    private val navy = 0xFF0E1224.toInt()
+    private val pageBg: Int get() = if (dark) 0xFF0B0F1A.toInt() else 0xFFF3F5F9.toInt()
+    private val cardBg: Int get() = if (dark) 0xFF151B2B.toInt() else white
+    private val line: Int get() = if (dark) 0xFF252D44.toInt() else 0xFFE3E7EF.toInt()
+    private val ink: Int get() = if (dark) 0xFFE8ECF8.toInt() else 0xFF0F172A.toInt()
+    private val soft: Int get() = if (dark) 0xFF98A2C3.toInt() else 0xFF64748B.toInt()
+    private val chip: Int get() = if (dark) 0xFF232B44.toInt() else 0xFFEEF1F6.toInt()
+    private val heroBg: Int get() = if (dark) 0xFF141B34.toInt() else navy
+    private val badgeBg: Int get() = if (dark) 0xFF2A3262.toInt() else navy
 
     private fun lp(w: Int = -1, h: Int = -2, top: Int = 0, bottom: Int = 0) =
         LinearLayout.LayoutParams(w, h).apply { topMargin = dp(top); bottomMargin = dp(bottom) }
@@ -67,11 +72,11 @@ class SettingsActivity : Activity() {
 
     private fun card(pad: Int = 16) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(pad), dp(pad - 4), dp(pad), dp(pad - 4))
-        background = GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(white); setStroke(dp(1), line) }
+        background = GradientDrawable().apply { cornerRadius = dp(20).toFloat(); setColor(cardBg); setStroke(dp(1), line) }
         layoutParams = lp(bottom = 16)
     }
 
-    private fun divider() = View(this).apply { setBackgroundColor(0xFFEEF1F6.toInt()); layoutParams = LinearLayout.LayoutParams(-1, dp(1)) }
+    private fun divider() = View(this).apply { setBackgroundColor(chip); layoutParams = LinearLayout.LayoutParams(-1, dp(1)) }
 
     private fun pill(label: String, fill: Int, color: Int, onClick: () -> Unit) = tv(label, 13f, true, color).apply {
         gravity = Gravity.CENTER; setPadding(dp(16), dp(9), dp(16), dp(9))
@@ -82,7 +87,7 @@ class SettingsActivity : Activity() {
     private fun button(th: Theme, label: String, filled: Boolean, onClick: () -> Unit) = Button(this).apply {
         text = label; isAllCaps = false; textSize = 15f; stateListAnimator = null
         setTextColor(if (filled) th.onAccent else ink)
-        background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(if (filled) th.accent else 0xFFEEF1F6.toInt()) }
+        background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(if (filled) th.accent else chip) }
         setOnClickListener { onClick() }
         layoutParams = LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(4) }
     }
@@ -97,14 +102,14 @@ class SettingsActivity : Activity() {
             isChecked = Prefs.bool(this@SettingsActivity, k, def)
             val st = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
             thumbTintList = ColorStateList(st, intArrayOf(th.onAccent, white))
-            trackTintList = ColorStateList(st, intArrayOf(th.accent, 0xFFCBD2E1.toInt()))
+            trackTintList = ColorStateList(st, intArrayOf(th.accent, if (dark) 0xFF3A4363.toInt() else 0xFFCBD2E1.toInt()))
             setOnCheckedChangeListener { _, v -> Prefs.setBool(this@SettingsActivity, k, v) }
         })
         c.addView(row)
     }
 
     private fun seg(th: Theme, opts: List<String>, sel: Int, onPick: (Int) -> Unit) = LinearLayout(this).apply {
-        background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(0xFFEEF1F6.toInt()) }
+        background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(chip) }
         setPadding(dp(3), dp(3), dp(3), dp(3))
         opts.forEachIndexed { i, o ->
             addView(TextView(this@SettingsActivity).apply {
@@ -120,30 +125,33 @@ class SettingsActivity : Activity() {
         gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(12), 0, dp(12))
         addView(tv(if (done) "✓" else n.toString(), 14f, true, white).apply {
             gravity = Gravity.CENTER
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (done) 0xFF16A34A.toInt() else navy) }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (done) 0xFF16A34A.toInt() else badgeBg) }
         }, LinearLayout.LayoutParams(dp(30), dp(30)).apply { rightMargin = dp(12) })
         val col = LinearLayout(this@SettingsActivity).apply { orientation = LinearLayout.VERTICAL }
         col.addView(tv(title, 15.5f, true)); col.addView(tv(sub, 12.5f, false, soft))
         addView(col, LinearLayout.LayoutParams(0, -2, 1f))
-        addView(pill(action, if (done) 0xFFEEF1F6.toInt() else th.accent, if (done) soft else th.onAccent, onClick))
+        addView(pill(action, if (done) chip else th.accent, if (done) soft else th.onAccent, onClick))
     }
 
     private fun show(t: Int) {
         tab = t; val th = Prefs.theme(this)
-        window.statusBarColor = pageBg
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+        dark = when (Prefs.appMode(this)) { 1 -> false; 2 -> true; else -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES }
+        window.statusBarColor = pageBg; window.navigationBarColor = cardBg
+        var flags = 0
+        if (!dark) flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or (if (android.os.Build.VERSION.SDK_INT >= 26) 0x10 else 0)
+        window.decorView.systemUiVisibility = flags
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(pageBg); fitsSystemWindows = true }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(10), dp(18), dp(16)) }
         when (t) { 0 -> home(col, th); 1 -> themes(col); else -> settings(col, th) }
         root.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(View(this).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, dp(1)))
-        val bar = LinearLayout(this).apply { setBackgroundColor(white); setPadding(0, dp(8), 0, dp(8)) }
+        val bar = LinearLayout(this).apply { setBackgroundColor(cardBg); setPadding(0, dp(8), 0, dp(8)) }
         listOf(Triple("Home", IconView.HOME, 0), Triple("Themes", IconView.PALETTE, 1), Triple("Settings", IconView.TUNE, 2)).forEach { (n, k, i) ->
             val on = i == t
             val item = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setOnClickListener { show(i) } }
-            val chip = FrameLayout(this).apply { if (on) background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(th.accent) } }
-            chip.addView(IconView(this, k, if (on) th.onAccent else soft), FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
-            item.addView(chip, LinearLayout.LayoutParams(dp(60), dp(32)))
+            val box = FrameLayout(this).apply { if (on) background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(th.accent) } }
+            box.addView(IconView(this, k, if (on) th.onAccent else soft), FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
+            item.addView(box, LinearLayout.LayoutParams(dp(60), dp(32)))
             item.addView(tv(n, 11.5f, on, if (on) ink else soft).apply { gravity = Gravity.CENTER; setPadding(0, dp(3), 0, 0) })
             bar.addView(item, LinearLayout.LayoutParams(0, -2, 1f))
         }
@@ -160,7 +168,7 @@ class SettingsActivity : Activity() {
 
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20))
-            background = GradientDrawable().apply { cornerRadius = dp(28).toFloat(); setColor(navy) }
+            background = GradientDrawable().apply { cornerRadius = dp(28).toFloat(); setColor(heroBg) }
             layoutParams = lp(bottom = 16)
         }
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -219,7 +227,7 @@ class SettingsActivity : Activity() {
             row.addView(View(this).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(t.accent) } },
                 LinearLayout.LayoutParams(dp(12), dp(12)).apply { rightMargin = dp(8) })
             row.addView(tv(t.name, 16f, true), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(if (t.name == sel) pill("Selected", t.accent, t.onAccent) {} else pill("Apply", 0xFFEEF1F6.toInt(), ink) { Prefs.setTheme(this, t.name); show(1) })
+            row.addView(if (t.name == sel) pill("Selected", t.accent, t.onAccent) {} else pill("Apply", chip, ink) { Prefs.setTheme(this, t.name); show(1) })
             k.addView(row)
             k.setOnClickListener { Prefs.setTheme(this, t.name); show(1) }
             c.addView(k)
@@ -228,8 +236,14 @@ class SettingsActivity : Activity() {
 
     private fun settings(c: LinearLayout, th: Theme) {
         c.addView(tv("Settings", 28f, true).apply { setPadding(dp(4), 0, 0, dp(16)) })
-        c.addView(head("Typing"))
+        c.addView(head("Appearance"))
         var k = card()
+        k.addView(tv("App theme", 15.5f).apply { setPadding(0, dp(8), 0, dp(8)) })
+        k.addView(seg(th, listOf("Auto", "Light", "Dark"), Prefs.appMode(this)) { Prefs.setAppMode(this, it); show(2) }, lp(bottom = 8))
+        c.addView(k)
+        c.addView(head("Typing"))
+        k = card()
+        switchRow(k, th, "borders", "Key borders", "Draw a border around every key", true); k.addView(divider())
         switchRow(k, th, "hints", "Sinhala key hints", "Show the Sinhala letter on each key", true); k.addView(divider())
         switchRow(k, th, "autocorrect", "Auto-correct Singlish", "Fix common words as you type", true)
         c.addView(k)
@@ -251,7 +265,7 @@ class SettingsActivity : Activity() {
         c.addView(k)
         c.addView(head("About"))
         k = card()
-        k.addView(tv("Typix 0.2.0", 15.5f, true).apply { setPadding(0, dp(6), 0, dp(2)) })
+        k.addView(tv("Typix 0.3.0", 15.5f, true).apply { setPadding(0, dp(6), 0, dp(2)) })
         k.addView(tv("Typix has no internet permission. Nothing you type leaves this phone.", 13f, false, soft).apply { setPadding(0, 0, 0, dp(6)) })
         c.addView(k)
     }

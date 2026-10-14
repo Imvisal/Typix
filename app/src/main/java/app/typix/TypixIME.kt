@@ -58,25 +58,43 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         }
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         bar.addView(LogoView(this, th.accent).apply { setOnClickListener { openApp() } },
-            LinearLayout.LayoutParams(dp(34), dp(34)).apply { setMargins(dp(4), 0, dp(8), 0) })
-        tabEn = cell("En", 16f, th.text) { setLang(false) }.apply { minWidth = dp(46) }
-        tabSi = cell("සිං", 16f, th.text) { setLang(true) }.apply { minWidth = dp(46) }
-        bar.addView(tabEn, LinearLayout.LayoutParams(-2, dp(34)))
-        bar.addView(tabSi, LinearLayout.LayoutParams(-2, dp(34)).apply { leftMargin = dp(4) })
-        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            LinearLayout.LayoutParams(dp(36), dp(36)).apply { setMargins(dp(4), 0, dp(6), 0) })
+        tabEn = cell("En", 16f, th.text) { setLang(false) }
+        tabSi = cell("සිං", 17f, th.text) { setLang(true) }
+        bar.addView(tabEn, btnLp()); bar.addView(tabSi, btnLp())
         val kinds = listOf(IconView.EMOJI, IconView.CLIP, IconView.EDIT, IconView.TUNE)
-        icons = kinds.mapIndexed { i, k ->
-            IconView(this, k, th.text).apply { setOnClickListener { when (i) { 0, 1, 2 -> togglePanel(i + 1); else -> openApp() } } }
+        val made = kinds.mapIndexed { i, k ->
+            val iv = IconView(this, k, th.text)
+            val fl = FrameLayout(this).apply {
+                background = subtle()
+                addView(iv, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
+                setOnClickListener { when (i) { 0, 1, 2 -> togglePanel(i + 1); else -> openApp() } }
+            }
+            bar.addView(fl, btnLp()); iv
         }
-        for (v in icons) bar.addView(v, LinearLayout.LayoutParams(dp(42), dp(40)))
+        icons = made
         root.addView(bar, LinearLayout.LayoutParams(-1, dp(42)))
         strip = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         root.addView(strip, LinearLayout.LayoutParams(-1, dp(38)))
         body = FrameLayout(this)
         root.addView(body, LinearLayout.LayoutParams(-1, bodyH()))
         keys = TypixKeyboardView(this, this).also { it.sinhala = sinhala }
-        showKeys(); refreshTabs(); updateStrip()
+        showKeys(); refreshTabs(); updateStrip(); applyNav()
         return root
+    }
+
+    private fun btnLp() = LinearLayout.LayoutParams(0, dp(36), 1f).apply { setMargins(dp(2), 0, dp(2), 0) }
+    private fun subtle() = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor((th.key and 0x00FFFFFF) or 0x66000000) }
+
+    /** Paint the system navigation bar the same colour as the keyboard (no black strip at the bottom). */
+    private fun applyNav() {
+        val w = window?.window ?: return
+        w.navigationBarColor = th.bg
+        if (android.os.Build.VERSION.SDK_INT >= 28) w.navigationBarDividerColor = th.bg
+        val r = (th.bg shr 16) and 255; val g = (th.bg shr 8) and 255; val b = th.bg and 255
+        val light = r * 0.299 + g * 0.587 + b * 0.114 > 150
+        val dv = w.decorView
+        dv.systemUiVisibility = if (light) dv.systemUiVisibility or 0x10 else dv.systemUiVisibility and 0x10.inv()
     }
 
     private fun togglePanel(n: Int) {
@@ -92,7 +110,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private fun refreshTabs() {
         for ((v, on) in listOf(tabEn to !sinhala, tabSi to sinhala)) {
             v.setTextColor(if (on) th.accent else (th.text and 0x00FFFFFF) or 0x99000000.toInt())
-            v.background = if (on) GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(th.key) } else null
+            v.background = if (on) GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(th.key) } else subtle()
         }
     }
 
@@ -218,6 +236,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         if (::th.isInitialized && Prefs.theme(this).name != th.name) { setInputView(onCreateInputView()); return }
+        if (::th.isInitialized) applyNav()
         if (::body.isInitialized) { showKeys(); keys?.applySettings(); body.layoutParams = LinearLayout.LayoutParams(-1, bodyH()); body.requestLayout(); updateStrip() }
     }
 

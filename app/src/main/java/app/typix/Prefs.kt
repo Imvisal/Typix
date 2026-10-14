@@ -23,6 +23,8 @@ object Prefs {
     )
     private const val SEP = "\u0001"
     val heights = listOf("Short" to 46, "Medium" to 54, "Tall" to 62, "Extra tall" to 70)
+    fun appMode(c: Context) = sp(c).getInt("appmode", 0).coerceIn(0, 2)   // 0 auto, 1 light, 2 dark
+    fun setAppMode(c: Context, m: Int) = sp(c).edit().putInt("appmode", m).apply()
     fun heightIdx(c: Context) = sp(c).getInt("height", 1).coerceIn(0, heights.size - 1)
     fun setHeightIdx(c: Context, i: Int) = sp(c).edit().putInt("height", i).apply()
     fun rowDp(c: Context) = heights[heightIdx(c)].second

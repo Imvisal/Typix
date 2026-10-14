@@ -14,12 +14,14 @@ import android.view.View
 class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     interface Listener { fun onKey(c: Char); fun onSpace(); fun onBackspace(); fun onEnter(); fun onLang(); fun onPicker() }
     var sinhala = true
-    private var hints = true; private var sound = false; private var vibrate = true
+    private var hints = true; private var sound = false; private var vibrate = true; private var borders = true
     private var shift = false; private var symbols = false
     private class Key(val label: String, val code: Int, val x: Float, val w: Float, val row: Int, val r: RectF = RectF())
     private var keys: List<Key> = emptyList()
     private val d = ctx.resources.displayMetrics.density
     private val bg = Paint()
+    private val fillP = Paint(Paint.ANTI_ALIAS_FLAG); private val specialP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1f * d }
     private val litP = Paint(Paint.ANTI_ALIAS_FLAG); private val accentP = Paint(Paint.ANTI_ALIAS_FLAG); private val pillP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val ic = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; strokeWidth = 1.9f * d }
     private val path = Path(); private val tmp = RectF()
@@ -63,7 +65,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     private fun layoutKeys() {
         if (width == 0) return
-        val u = width / 10f; val rh = rowDp * d; val pad = 2 * d; val top = 6 * d
+        val u = width / 10f; val rh = rowDp * d; val pad = (if (borders) 3f else 2f) * d; val top = 6 * d
         for (k in keys) k.r.set(k.x * u + pad, top + k.row * rh + pad, (k.x + k.w) * u - pad, top + (k.row + 1) * rh - pad)
     }
 
@@ -75,10 +77,11 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     fun applySettings() {
         val t = Prefs.theme(context)
         bg.color = t.bg; litP.color = t.key; accentP.color = t.accent; accent = t.accent; textColor = t.text; onAccent = t.onAccent
+        fillP.color = mix(t.key, t.bg, 0.55f); specialP.color = mix(t.key, t.bg, 0.2f); strokeP.color = mix(t.key, t.text, 0.22f)
         dimColor = mix(t.text, t.bg, 0.4f); pillP.color = mix(t.key, t.bg, 0.3f); hintP.color = t.accent; digitP.color = dimColor
         rowDp = Prefs.rowDp(context).toFloat(); requestLayout(); layoutKeys()
-        hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false); vibrate = Prefs.bool(context, "vibrate", true)
-        invalidate()
+        hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false); vibrate = Prefs.bool(context, "vibrate", true); borders = Prefs.bool(context, "borders", true)
+        layoutKeys(); invalidate()
     }
 
     override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), (4 * rowDp * d + 12 * d).toInt())
@@ -104,7 +107,10 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
                     c.drawPath(path, ic)
                 }
                 else -> {
-                    if (lit) c.drawRoundRect(k.r, 10 * d, 10 * d, litP)
+                    if (borders) {
+                        c.drawRoundRect(k.r, 10 * d, 10 * d, if (lit) litP else if (k.code < 0) specialP else fillP)
+                        c.drawRoundRect(k.r, 10 * d, 10 * d, strokeP)
+                    } else if (lit) c.drawRoundRect(k.r, 10 * d, 10 * d, litP)
                     when (k.code) {
                         -5 -> {
                             ic.color = if (shift) accent else textColor; path.reset()
