@@ -19,11 +19,13 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private var keys: List<Key> = emptyList()
     private val d = ctx.resources.displayMetrics.density
     private val bg = Paint(); private val keyP = Paint(Paint.ANTI_ALIAS_FLAG); private val hitP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val shadowP = Paint(Paint.ANTI_ALIAS_FLAG); private val specialP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var rowDp = 54f
     private val big = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 19 * d }
     private val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 13 * d }
     private val hintP = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT; textSize = 10 * d; alpha = 170 }
     private var textColor = 0
-    private val pressedText = 0xFF0E1224.toInt()
+    private var pressedText = 0xFF0E1224.toInt()
     private var down: Key? = null
     private val rep = object : Runnable { override fun run() { l.onBackspace(); postDelayed(this, 45) } }
     private val hintMap = mapOf('q' to "ඤ", 'w' to "ව", 'e' to "එ", 'r' to "ර", 't' to "ත", 'y' to "ය", 'u' to "උ", 'i' to "ඉ",
@@ -47,27 +49,36 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     private fun layoutKeys() {
         if (width == 0) return
-        val u = width / 10f; val rh = 54 * d; val pad = 3 * d; val top = 6 * d
+        val u = width / 10f; val rh = rowDp * d; val pad = 3 * d; val top = 6 * d
         for (k in keys) k.r.set(k.x * u + pad, top + k.row * rh + pad, (k.x + k.w) * u - pad, top + (k.row + 1) * rh - pad)
+    }
+
+    private fun mix(a: Int, b: Int, t: Float): Int {
+        fun ch(s: Int) = (((a shr s) and 255) * (1 - t) + ((b shr s) and 255) * t).toInt()
+        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
     }
 
     fun applySettings() {
         val t = Prefs.theme(context)
         bg.color = t.bg; keyP.color = t.key; hitP.color = t.accent; textColor = t.text; hintP.color = t.accent
+        shadowP.color = mix(t.key, 0xFF000000.toInt(), 0.35f); specialP.color = mix(t.key, t.bg, 0.45f)
+        pressedText = t.onAccent; rowDp = Prefs.rowDp(context).toFloat(); requestLayout(); layoutKeys()
         hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false); vibrate = Prefs.bool(context, "vibrate", true)
         invalidate()
     }
 
-    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), (4 * 54 * d + 12 * d).toInt())
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), (4 * rowDp * d + 12 * d).toInt())
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) = layoutKeys()
 
     override fun onDraw(c: Canvas) {
         c.drawPaint(bg)
         for (k in keys) {
             val lit = k === down || (k.code == -5 && shift)
-            c.drawRoundRect(k.r, 8 * d, 8 * d, if (lit) hitP else keyP)
+            val special = k.code < 0 && k.code != -1
+            c.drawRoundRect(k.r.left, k.r.top + 2 * d, k.r.right, k.r.bottom + 2 * d, 9 * d, 9 * d, shadowP)
+            c.drawRoundRect(k.r, 9 * d, 9 * d, if (lit || k.code == -3) hitP else if (special) specialP else keyP)
             val p = if (k.label.length > 1 || k.code == -1) small else big
-            p.color = if (lit) pressedText else textColor
+            p.color = if (lit || k.code == -3) pressedText else textColor
             val isLetter = k.code > 0 && k.label[0].isLetter()
             val t = when {
                 k.code == -1 -> if (sinhala) "typix · සිංහල" else "typix · English"

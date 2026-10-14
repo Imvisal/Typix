@@ -6,6 +6,6 @@ Type `mama yanawaa`, get `මම යනවා`. Native Kotlin, zero dependencies
 - GitHub: push, then Actions -> build -> download `typix-debug-apk`.
 
 ## Done
-Singlish engine (+tests), word list + suggestions, auto-correct, canvas keyboard (shift, ?123, key hints), emoji / clipboard / text editor panels, 6 themes, app (Home / Themes / Settings), password-safe mode.
+Singlish engine (+tests), suggestions + auto-correct, canvas keyboard (shift, ?123, key hints, 4 heights), always-visible icon toolbar, full emoji (9 categories + flags, auto-filtered to what your phone can draw) / clipboard / text editor panels, 6 themes with previews, app (Home / Themes / Settings).
 ## TODO
 Voice typing, multi-touch fast typing, bigger word list.

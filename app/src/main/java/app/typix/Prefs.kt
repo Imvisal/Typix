@@ -2,7 +2,13 @@ package app.typix
 
 import android.content.Context
 
-class Theme(val name: String, val bg: Int, val key: Int, val accent: Int, val text: Int)
+class Theme(val name: String, val bg: Int, val key: Int, val accent: Int, val text: Int) {
+    /** Text colour that stays readable on top of the accent colour. */
+    val onAccent: Int get() {
+        val r = (accent shr 16) and 255; val g = (accent shr 8) and 255; val b = accent and 255
+        return if (r * 0.299 + g * 0.587 + b * 0.114 > 140) 0xFF0E1224.toInt() else 0xFFFFFFFF.toInt()
+    }
+}
 
 /** App-private SharedPreferences (nothing leaves the phone). */
 object Prefs {
@@ -15,6 +21,10 @@ object Prefs {
         Theme("Plum", 0xFF1E1030.toInt(), 0xFF35194F.toInt(), 0xFFE879F9.toInt(), 0xFFF6E8FF.toInt())
     )
     private const val SEP = "\u0001"
+    val heights = listOf("Short" to 46, "Medium" to 54, "Tall" to 62, "Extra tall" to 70)
+    fun heightIdx(c: Context) = sp(c).getInt("height", 1).coerceIn(0, heights.size - 1)
+    fun setHeightIdx(c: Context, i: Int) = sp(c).edit().putInt("height", i).apply()
+    fun rowDp(c: Context) = heights[heightIdx(c)].second
     private fun sp(c: Context) = c.getSharedPreferences("typix", Context.MODE_PRIVATE)
     fun theme(c: Context): Theme { val n = sp(c).getString("theme", "Ink"); return themes.firstOrNull { it.name == n } ?: themes[0] }
     fun setTheme(c: Context, n: String) = sp(c).edit().putString("theme", n).apply()
