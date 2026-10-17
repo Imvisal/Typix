@@ -78,7 +78,8 @@ class SettingsActivity : Activity() {
     private var tab = 0
     private var pending: String? = null
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-    override fun onResume() { super.onResume(); show(tab) }
+    private var built = false
+    override fun onResume() { super.onResume(); if (!built || tab == 0) { built = true; show(tab) } }
 
     private var dark = true
     private val navy = 0xFF0E1224.toInt()
@@ -255,7 +256,7 @@ class SettingsActivity : Activity() {
         c.addView(q)
 
         c.addView(label("How to type"))
-        val tips = listOf("mama" to "මම", "aa" to "ආ", "A" to "ඇ", "ii" to "ඊ", "th" to "ත", "dh" to "ද", "kh" to "ඛ", "q" to "ද",
+        val tips = listOf("mama" to "මම", "aa" to "ආ", "A" to "ඇ", "ii" to "ඊ", "th" to "ත", "dh" to "ද", "kh" to "ඛ", "q" to "ද", "x" to "ං",
             "N" to "ණ", "L" to "ළ", "S" to "ෂ", "T" to "ඨ", "D" to "ඪ", "B" to "භ", "G" to "ඝ", "C" to "ඡ", "J" to "ඣ")
         val grid = card(12, 12)
         tips.chunked(3).forEachIndexed { ri, rowTips ->
@@ -332,6 +333,19 @@ class SettingsActivity : Activity() {
         switchRow(k, th, "sound", "Key sound", null, false); k.addView(divider())
         switchRow(k, th, "vibrate", "Vibrate on key press", null, true)
         c.addView(k)
+        c.addView(label("Key style"))
+        k = card(); k.setPadding(dp(16), dp(14), dp(16), dp(14))
+        k.addView(tv("Key shape", 17f).apply { setPadding(dp(4), 0, 0, dp(10)) })
+        k.addView(seg(th, listOf("Soft", "Square", "Round"), Prefs.int(this, "keyshape", 0)) { Prefs.setInt(this, "keyshape", it); show(2) })
+        k.addView(tv("Key spacing", 17f).apply { setPadding(dp(4), dp(16), 0, dp(10)) })
+        k.addView(seg(th, listOf("Tight", "Normal", "Wide"), Prefs.int(this, "keygap", 1)) { Prefs.setInt(this, "keygap", it); show(2) })
+        k.addView(tv("Letter size", 17f).apply { setPadding(dp(4), dp(16), 0, dp(10)) })
+        k.addView(seg(th, listOf("Small", "Medium", "Large"), Prefs.int(this, "keytext", 1)) { Prefs.setInt(this, "keytext", it); show(2) })
+        c.addView(k)
+        c.addView(label("One-handed mode"))
+        k = card(); k.setPadding(dp(16), dp(14), dp(16), dp(14))
+        k.addView(seg(th, listOf("Off", "Left", "Right"), Prefs.int(this, "onehand", 0)) { Prefs.setInt(this, "onehand", it); show(2) })
+        c.addView(k)
         c.addView(label("Keyboard height"))
         k = card(); k.setPadding(dp(16), dp(16), dp(16), dp(16))
         val idx = Prefs.heightIdx(this)
@@ -347,9 +361,16 @@ class SettingsActivity : Activity() {
             setOnClickListener { Prefs.setPins(this@SettingsActivity, emptyList()); ClipStore.clearRecent(); Toast.makeText(this@SettingsActivity, "Cleared", Toast.LENGTH_SHORT).show() }
         })
         c.addView(k)
+        c.addView(label("Reset"))
+        k = card()
+        k.addView(tv("Reset keyboard style", 16f, 600, accentText(th)).apply {
+            setPadding(0, dp(16), 0, dp(16))
+            setOnClickListener { for (n in listOf("keyshape", "keygap", "keytext", "onehand")) Prefs.setInt(this@SettingsActivity, n, if (n == "keygap" || n == "keytext") 1 else 0); Prefs.setHeightIdx(this@SettingsActivity, 1); show(2) }
+        })
+        c.addView(k)
         c.addView(label("About"))
         k = card(); k.setPadding(dp(20), dp(16), dp(20), dp(16))
-        k.addView(tv("Typix 0.5.1", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
+        k.addView(tv("Typix 0.6.0", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
         k.addView(tv("Typix has no internet permission. Nothing you type leaves this phone.", 14f, 400, soft).apply { setLineSpacing(0f, 1.1f) })
         c.addView(k)
     }

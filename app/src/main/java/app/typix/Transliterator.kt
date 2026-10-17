@@ -35,6 +35,7 @@ object Transliterator {
         val out = StringBuilder()
         var i = 0
         while (i < lc.length) {
+            if (lc[i] == 'x') { out.append("ං"); i++; continue }   // x = anusvara
             val v = vowelAt(lc, i)
             if (v != null) { out.append(v.third); i += v.first.length; continue }
             val c = consonantAt(input, lc, i)

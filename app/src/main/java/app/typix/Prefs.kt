@@ -42,7 +42,7 @@ object Prefs {
         Theme("Plum", 0xFF1E1030.toInt(), 0xFF35194F.toInt(), 0xFFE879F9.toInt(), 0xFFF6E8FF.toInt())
     )
     private const val SEP = "\u0001"
-    val heights = listOf("Short" to 46, "Medium" to 54, "Tall" to 62, "Extra tall" to 70)
+    val heights = listOf("Short" to 50, "Medium" to 58, "Tall" to 66, "Extra tall" to 74)
     fun themeByName(n: String?): Theme = themes.firstOrNull { it.name == n } ?: themes[0]
     fun appMode(c: Context) = sp(c).getInt("appmode", 0).coerceIn(0, 2)   // 0 auto, 1 light, 2 dark
     fun setAppMode(c: Context, m: Int) = sp(c).edit().putInt("appmode", m).apply()

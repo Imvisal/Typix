@@ -25,6 +25,15 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private var keys: TypixKeyboardView? = null
     private lateinit var body: FrameLayout
     private lateinit var strip: LinearLayout
+    private lateinit var topBar: LinearLayout
+    private var panelOn = false
+    private var rootView: LinearLayout? = null
+    private fun applyHand() {
+        val r = rootView ?: return
+        val side = (resources.displayMetrics.widthPixels * 0.18f).toInt()
+        val h = Prefs.int(this, "onehand", 0)
+        r.setPadding(dp(4) + (if (h == 2) side else 0), dp(6), dp(4) + (if (h == 1) side else 0), dp(2))
+    }
     private lateinit var emojiRow: LinearLayout
     private val sug = arrayOfNulls<TextView>(3)
     private val sugDiv = arrayOfNulls<View>(2)
@@ -85,7 +94,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { setColor(th.bg); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
-            setPadding(dp(4), dp(8), dp(4), dp(8))
+            setPadding(dp(4), dp(6), dp(4), dp(2))
         }
         iconPanels.clear(); iconBoxes.clear(); emojiCells.clear()
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -107,8 +116,8 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         tool(IconView.EMOJI, 1) { togglePanel(1) }
         tool(IconView.MIC, 0) { startVoice() }
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        tool(IconView.SUN, 0) { openApp() }
-        root.addView(bar, LinearLayout.LayoutParams(-1, dp(44)))
+        tool(IconView.TUNE, 0) { openApp() }
+        topBar = bar
 
         // 3 suggestion slots with thin dividers (views are created once and only re-texted while typing)
         strip = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -121,7 +130,10 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             sug[i] = t; strip.addView(t, LinearLayout.LayoutParams(0, -1, 1f))
             if (i < 2) { val dv = View(this).apply { setBackgroundColor(th.key) }; sugDiv[i] = dv; strip.addView(dv, LinearLayout.LayoutParams(dp(1), dp(22))) }
         }
-        root.addView(strip, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(4), dp(2), dp(4), 0) })
+        val top = FrameLayout(this)
+        top.addView(topBar, FrameLayout.LayoutParams(-1, -1))
+        top.addView(strip, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(4), 0, dp(4), 0) })
+        root.addView(top, LinearLayout.LayoutParams(-1, dp(46)))
         emojiRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         for (i in 0 until 7) {
             val t = TextView(this).apply { textSize = 22f; gravity = Gravity.CENTER; setOnClickListener { commit(text.toString()) } }
@@ -131,7 +143,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         body = FrameLayout(this)
         root.addView(body, LinearLayout.LayoutParams(-1, bodyH()))
         keys = TypixKeyboardView(this, this).also { it.sinhala = sinhala; it.enterKind = enterKind() }
-        showKeys(); refreshTabs(); refreshEmojiRow(); updateStrip(); applyNav()
+        showKeys(); refreshTabs(); refreshEmojiRow(); updateStrip(); rootView = root; applyNav(); applyHand()
         return root
     }
 
@@ -194,7 +206,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             val l = ArrayList<String>(EnDict.suggest(typed, 2))
             if (l.none { it == typed }) l.add(typed)
             list = l; stripMode = 1
-        } else { list = if (sinhala) sinhalaStarters else if (prefEn) englishStarters else emptyList(); stripMode = 2 }
+        } else { list = emptyList(); stripMode = 2 }
         suggestions = list
         val typing = stripMode != 2
         for (i in 0 until 3) {
@@ -205,6 +217,16 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             if (t.typeface !== tf) t.typeface = tf
         }
         for (i in 0 until 2) sugDiv[i]?.visibility = if (list.size > i + 1) View.VISIBLE else View.INVISIBLE
+        syncTop()
+    }
+
+    /** Suggestions replace the toolbar row while typing (like Gboard); the toolbar comes back otherwise. */
+    private fun syncTop() {
+        if (!::strip.isInitialized || !::topBar.isInitialized) return
+        val s = stripMode != 2 && !panelOn
+        val sv = if (s) View.VISIBLE else View.GONE; val bv = if (s) View.GONE else View.VISIBLE
+        if (strip.visibility != sv) strip.visibility = sv
+        if (topBar.visibility != bv) topBar.visibility = bv
     }
 
     private fun onSuggestion(i: Int) {
@@ -220,9 +242,9 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
 
     private fun setPanelMode(on: Boolean) {
         val showEmojiRow = prefEmojiRow && !secure && !on
-        strip.visibility = if (on) View.GONE else View.VISIBLE
+        panelOn = on; syncTop()
         emojiRow.visibility = if (showEmojiRow) View.VISIBLE else View.GONE
-        val extra = if (on) dp(46) + (if (prefEmojiRow && !secure) dp(40) else 0) else 0
+        val extra = if (on && prefEmojiRow && !secure) dp(40) else 0
         body.layoutParams = LinearLayout.LayoutParams(-1, bodyH() + extra)
     }
     private fun showKeys() { panel = 0; setPanelMode(false); body.removeAllViews(); keys?.let { body.addView(it) }; refreshIcons() }
@@ -380,7 +402,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         super.onStartInputView(info, restarting)
         if (::th.isInitialized && Prefs.theme(this).name != th.name) { setInputView(onCreateInputView()); return }
         if (::th.isInitialized) applyNav()
-        loadPrefs()
+        loadPrefs(); applyHand()
         if (::body.isInitialized) {
             showKeys(); keys?.applySettings(); keys?.sinhala = sinhala; keys?.enterKind = enterKind()
             refreshTabs(); refreshEmojiRow(); updateStrip(); autoShift()

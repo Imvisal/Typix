@@ -82,10 +82,10 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     init {
         val h = mapOf('q' to "ද", 'w' to "ව", 'e' to "එ", 'r' to "ර", 't' to "ත", 'y' to "ය", 'u' to "උ", 'i' to "ඉ",
             'o' to "ඔ", 'p' to "ප", 'a' to "අ", 's' to "ස", 'd' to "ද", 'f' to "ෆ", 'g' to "ග", 'h' to "හ", 'j' to "ජ", 'k' to "ක",
-            'l' to "ල", 'z' to "ශ", 'x' to "ඛ", 'c' to "ච", 'v' to "ව", 'b' to "බ", 'n' to "න", 'm' to "ම")
+            'l' to "ල", 'z' to "ශ", 'x' to "ං", 'c' to "ච", 'v' to "ව", 'b' to "බ", 'n' to "න", 'm' to "ම")
         for ((c, s) in h) hintTab[c.code] = s
         // Shift (capital) letters: A = ඇ, N = ණ, L = ළ ...
-        val s = mapOf('q' to "ධ", 'a' to "ඇ", 'k' to "ඛ", 'n' to "ණ", 'l' to "ළ", 's' to "ෂ", 't' to "ඨ", 'd' to "ඪ", 'b' to "භ", 'g' to "ඝ", 'c' to "ඡ", 'j' to "ඣ")
+        val s = mapOf('q' to "ධ", 'a' to "ඇ", 'k' to "ඛ", 'n' to "ණ", 'l' to "ළ", 's' to "ෂ", 'x' to "ං", 't' to "ඨ", 'd' to "ඪ", 'b' to "භ", 'g' to "ඝ", 'c' to "ඡ", 'j' to "ඣ")
         for ((c, v) in s) shiftTab[c.code] = v
         build(); applySettings()
     }
@@ -110,9 +110,12 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     private fun layoutKeys() {
         if (width == 0) return
-        val u = width / 10f; val rh = rowDp * d; val padX = 2.5f * d; val padY = 3.5f * d; val top = 4 * d
+        val u = width / 10f; val rh = rowDp * d; val padX = gap * 2.5f * d; val padY = gap * 3.5f * d; val top = 4 * d
         for (k in keys) k.r.set(k.x * u + padX, top + k.row * rh + padY, (k.x + k.w) * u - padX, top + (k.row + 1) * rh - padY)
     }
+
+    private var gap = 1f
+    private var rad = 12f * 3f
 
     fun applySettings() {
         val t = Prefs.theme(context)
@@ -127,6 +130,10 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false)
         vibrate = Prefs.bool(context, "vibrate", true); borders = Prefs.bool(context, "borders", false)
         swipeCursor = Prefs.bool(context, "swipecursor", true)
+        gap = floatArrayOf(0.6f, 1f, 1.5f)[Prefs.int(context, "keygap", 1).coerceIn(0, 2)]
+        rad = floatArrayOf(12f, 5f, 22f)[Prefs.int(context, "keyshape", 0).coerceIn(0, 2)] * d
+        val ts = floatArrayOf(0.88f, 1f, 1.12f)[Prefs.int(context, "keytext", 1).coerceIn(0, 2)]
+        big.textSize = 22 * d * ts; small.textSize = 15 * d * ts
         layoutKeys(); invalidate()
     }
 
@@ -143,7 +150,6 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     override fun onDraw(c: Canvas) {
         c.drawPaint(bg)
-        val rad = 12 * d
         val upper = shift || caps
         for (k in keys) {
             val pressed = isDown(k)
@@ -160,7 +166,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
             when (k.code) {
                 -1 -> {
                     spaceP.color = dimColor
-                    c.drawText(if (sinhala) "typix · සිංහල" else "typix · English", cx, cy + 4.5f * d, spaceP)
+                    c.drawText(if (sinhala) "Typix · සිංහල" else "Typix · English", cx, cy + 4.5f * d, spaceP)
                 }
                 -5 -> {
                     ic.color = if (upper) accent else textColor; path.reset()
