@@ -18,6 +18,10 @@ class TransliteratorTest {
         assertEquals("ද", Transliterator.transliterate("qa"))
         assertEquals("ද්", Transliterator.transliterate("q"))
         assertEquals("ධ", Transliterator.transliterate("Qa"))
+        assertEquals("නෑ", Transliterator.transliterate("nAa"))
+        assertEquals("බෑ", Transliterator.transliterate("bAa"))
+        assertEquals("ඈ", Transliterator.transliterate("Aa"))
+        assertEquals("කෑම", Transliterator.transliterate("kAama"))
     }
     @Test fun anusvara() { assertEquals("සං", Transliterator.transliterate("sax")); assertEquals("ං", Transliterator.transliterate("x")) }
 }

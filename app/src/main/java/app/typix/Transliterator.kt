@@ -30,7 +30,7 @@ object Transliterator {
     }
 
     fun transliterate(raw: String): String {
-        val input = raw.replace("A", "ae")   // capital A = ඇ (shift + a)
+        val input = raw.replace("Aa", "aae").replace("A", "ae")   // capital A = ඇ (shift + a); A + a = ඈ / ෑ  (nAa = නෑ, bAa = බෑ)
         val lc = input.lowercase()
         val out = StringBuilder()
         var i = 0
