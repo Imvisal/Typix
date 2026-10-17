@@ -30,7 +30,7 @@ class VoiceInput(private val ctx: Context, private val cb: Callback) {
     private var wantOn = false
     private var lang = "si-LK"
     private var silentRounds = 0
-    private var muted = false
+    private val mutedStreams = ArrayList<Int>()
     private var lastPartial = ""
     private val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val beepStreams = intArrayOf(AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM)
@@ -132,12 +132,24 @@ class VoiceInput(private val ctx: Context, private val cb: Callback) {
     }
 
     private fun muteBeeps() {
-        if (muted) return
-        try { for (s in beepStreams) am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0); muted = true } catch (e: Exception) { }
+        if (mutedStreams.isNotEmpty()) return
+        for (s in beepStreams) try { am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0); mutedStreams.add(s) } catch (e: Exception) { }
+        if (mutedStreams.isNotEmpty()) flag(ctx, true)
     }
     private fun unmuteBeeps() {
-        if (!muted) return
-        try { for (s in beepStreams) am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
-        muted = false
+        if (mutedStreams.isEmpty()) return
+        for (s in mutedStreams) try { am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
+        mutedStreams.clear(); flag(ctx, false)
+    }
+
+    companion object {
+        private fun flag(c: Context, on: Boolean) = c.getSharedPreferences("typix_private", Context.MODE_PRIVATE).edit().putBoolean("beepmuted", on).apply()
+        /** If the keyboard was killed while dictating, the beep streams may still be muted: undo that on the next start. */
+        fun restoreBeeps(c: Context) {
+            if (!c.getSharedPreferences("typix_private", Context.MODE_PRIVATE).getBoolean("beepmuted", false)) return
+            val am = c.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            for (s in intArrayOf(AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM)) try { am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
+            flag(c, false)
+        }
     }
 }

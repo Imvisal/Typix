@@ -12,3 +12,8 @@ jobs:
       - run: gradle testDebugUnitTest assembleDebug
       - uses: actions/upload-artifact@v4
         with: { name: typix-debug-apk, path: app/build/outputs/apk/debug/*.apk }
+      # optimised build (R8 shrunk, no debug code): smaller and a little faster. Same signing key, so it installs over the debug one.
+      - run: gradle assembleRelease
+        continue-on-error: true
+      - uses: actions/upload-artifact@v4
+        with: { name: typix-release-apk, path: app/build/outputs/apk/release/*.apk, if-no-files-found: ignore }
