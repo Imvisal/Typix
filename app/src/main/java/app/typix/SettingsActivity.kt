@@ -460,7 +460,7 @@ class SettingsActivity : Activity() {
             k.addView(divider())
             switchRow(k, th, "autosync", "Sync automatically", "Save your settings to your account when you leave this screen", true); k.addView(divider())
             k.addView(tv("Save settings to account now", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener {
-                CloudSync.upload(this@SettingsActivity) { err -> Toast.makeText(this@SettingsActivity, err ?: "Saved to your account", Toast.LENGTH_SHORT).show() }
+                CloudSync.upload(this@SettingsActivity, true) { err -> Toast.makeText(this@SettingsActivity, err ?: "Saved to your account", Toast.LENGTH_SHORT).show() }
             } })
             k.addView(divider())
             k.addView(tv("Restore settings from account", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener {

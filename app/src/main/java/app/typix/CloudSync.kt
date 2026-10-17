@@ -30,8 +30,10 @@ object CloudSync {
         FirebaseApp.getApps(c).isNotEmpty()
     } catch (e: Exception) { false }
 
-    fun signedIn(c: Context) = ready(c) && FirebaseAuth.getInstance().currentUser != null
-    fun account(c: Context): String? = if (!ready(c)) null else FirebaseAuth.getInstance().currentUser?.let { it.email ?: it.displayName ?: "Signed in" }
+    // Firebase is only started for people who signed in at least once ("cloud" flag, kept in the private file): opening Settings stays instant for everyone else.
+    private fun used(c: Context) = Prefs.pv(c).getBoolean("cloud", false)
+    fun signedIn(c: Context) = used(c) && ready(c) && FirebaseAuth.getInstance().currentUser != null
+    fun account(c: Context): String? = if (!used(c) || !ready(c)) null else FirebaseAuth.getInstance().currentUser?.let { it.email ?: it.displayName ?: "Signed in" }
 
     private fun nice(e: Throwable?): String {
         val m = e?.message ?: return "Something went wrong"
@@ -57,9 +59,10 @@ object CloudSync {
                 val token = try { GoogleIdTokenCredential.createFrom(cred.data).idToken } catch (e: Exception) { done(nice(e)); return }
                 FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null))
                     .addOnSuccessListener {
+                        Prefs.pv(a).edit().putBoolean("cloud", true).apply()
                         download(a) { n, err ->
                             if (err != null) done(err)
-                            else if (n == 0) upload(a) { e2 -> done(e2) } else done(null)
+                            else if (n == 0) upload(a, true) { e2 -> done(e2) } else done(null)
                         }
                     }
                     .addOnFailureListener { done(nice(it)) }
@@ -68,15 +71,17 @@ object CloudSync {
         })
     }
 
-    fun signOut(c: Context) { if (ready(c)) FirebaseAuth.getInstance().signOut() }
+    fun signOut(c: Context) { if (ready(c)) FirebaseAuth.getInstance().signOut(); Prefs.pv(c).edit().putBoolean("cloud", false).remove("synchash").apply() }
 
-    /** Save the settings to the account. done(null) = success. */
-    fun upload(c: Context, done: (String?) -> Unit) {
+    /** Save the settings to the account. Skipped when nothing changed since the last sync, unless [force]. done(null) = success. */
+    fun upload(c: Context, force: Boolean = false, done: (String?) -> Unit) {
         if (!ready(c)) { done("Firebase is not set up in this build"); return }
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: run { done("Not signed in"); return }
+        val json = Prefs.exportJson(c); val h = json.hashCode()
+        if (!force && Prefs.pv(c).getInt("synchash", 0) == h) { done(null); return }
         FirebaseFirestore.getInstance().collection("users").document(uid)
-            .set(mapOf("settings" to Prefs.exportJson(c), "updated" to System.currentTimeMillis()))
-            .addOnSuccessListener { done(null) }.addOnFailureListener { done(nice(it)) }
+            .set(mapOf("settings" to json, "updated" to System.currentTimeMillis()))
+            .addOnSuccessListener { Prefs.pv(c).edit().putInt("synchash", h).apply(); done(null) }.addOnFailureListener { done(nice(it)) }
     }
 
     /** Restore the settings from the account. done(count, error): count = settings restored (0 = nothing saved yet). */
@@ -84,7 +89,11 @@ object CloudSync {
         if (!ready(c)) { done(0, "Firebase is not set up in this build"); return }
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: run { done(0, "Not signed in"); return }
         FirebaseFirestore.getInstance().collection("users").document(uid).get()
-            .addOnSuccessListener { s -> val t = s.getString("settings"); done(if (t == null) 0 else Prefs.importJson(c, t), null) }
+            .addOnSuccessListener { s ->
+                val t = s.getString("settings"); val n = if (t == null) 0 else Prefs.importJson(c, t)
+                if (n > 0) Prefs.pv(c).edit().putInt("synchash", Prefs.exportJson(c).hashCode()).apply()
+                done(n, null)
+            }
             .addOnFailureListener { done(0, nice(it)) }
     }
 }

@@ -61,7 +61,7 @@ object Prefs {
     fun bool(c: Context, k: String, def: Boolean) = sp(c).getBoolean(k, def)
     fun setBool(c: Context, k: String, v: Boolean) = sp(c).edit().putBoolean(k, v).apply()
     // Pinned clips can hold private text, so they live in their own file that is never backed up or exported.
-    private fun pv(c: Context) = c.getSharedPreferences("typix_private", Context.MODE_PRIVATE)
+    fun pv(c: Context) = c.getSharedPreferences("typix_private", Context.MODE_PRIVATE)
     fun pins(c: Context): List<String> {
         val old = sp(c).getString("pins", null)
         if (old != null) { pv(c).edit().putString("pins", old).apply(); sp(c).edit().remove("pins").apply() }   // one-time move
