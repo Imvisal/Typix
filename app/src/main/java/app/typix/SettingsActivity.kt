@@ -190,6 +190,11 @@ class SettingsActivity : Activity() {
         } catch (e: Exception) { Toast.makeText(this, "Couldn't read or write that file", Toast.LENGTH_SHORT).show() }
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (Prefs.bool(this, "autosync", true) && CloudSync.signedIn(this)) CloudSync.upload(this) { }
+    }
+
     private var scroller: ScrollView? = null
     private fun show(t: Int) {
         val keepY = if (t == tab) scroller?.scrollY ?: 0 else 0
@@ -440,6 +445,34 @@ class SettingsActivity : Activity() {
             setOnClickListener { Prefs.setPins(this@SettingsActivity, emptyList()); ClipStore.clearRecent(); Toast.makeText(this@SettingsActivity, "Cleared", Toast.LENGTH_SHORT).show() }
         })
         c.addView(k)
+        c.addView(label("Google account"))
+        k = card()
+        val acct = CloudSync.account(this)
+        if (acct == null) {
+            k.addView(tv("Sign in with Google", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener {
+                CloudSync.signIn(this@SettingsActivity) { err ->
+                    Toast.makeText(this@SettingsActivity, err ?: "Signed in - settings synced", Toast.LENGTH_SHORT).show(); show(tab)
+                }
+            } })
+        } else {
+            k.addView(tv(acct, 16f, 600).apply { setPadding(0, dp(16), 0, dp(4)) })
+            k.addView(tv("Signed in with Google", 13f, 400, soft).apply { setPadding(0, 0, 0, dp(12)) })
+            k.addView(divider())
+            switchRow(k, th, "autosync", "Sync automatically", "Save your settings to your account when you leave this screen", true); k.addView(divider())
+            k.addView(tv("Save settings to account now", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener {
+                CloudSync.upload(this@SettingsActivity) { err -> Toast.makeText(this@SettingsActivity, err ?: "Saved to your account", Toast.LENGTH_SHORT).show() }
+            } })
+            k.addView(divider())
+            k.addView(tv("Restore settings from account", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener {
+                CloudSync.download(this@SettingsActivity) { n, err ->
+                    Toast.makeText(this@SettingsActivity, err ?: if (n > 0) "Settings restored" else "Nothing saved in your account yet", Toast.LENGTH_SHORT).show(); if (n > 0) show(tab)
+                }
+            } })
+            k.addView(divider())
+            k.addView(tv("Sign out", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener { CloudSync.signOut(this@SettingsActivity); show(tab) } })
+        }
+        c.addView(k)
+        c.addView(tv("Only your keyboard settings (theme, colors, switches) are saved to your account. What you type, your clipboard and pinned clips never leave the phone.", 13f, 400, soft).apply { setPadding(dp(4), dp(10), dp(4), dp(4)) })
         c.addView(label("Backup & restore"))
         k = card()
         k.addView(tv("Save settings to a file", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener { saveSettings() } })

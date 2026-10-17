@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1016989225964",
+    "project_id": "typix-7368c",
+    "storage_bucket": "typix-7368c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1016989225964:android:de32dd7f75e4c9850c66c9",
+        "android_client_info": {
+          "package_name": "app.typix.keyboard"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1016989225964-3pvholltskh612gvjet702c9jp18bk40.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "app.typix.keyboard",
+            "certificate_hash": "ad204b91485f0daec8b97def901bc7e1f3df90e4"
+          }
+        },
+        {
+          "client_id": "1016989225964-iv954fovtghge7ep4tl4gnivecrghi4l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAF4GNQp1_fx93GZd96Vh0pzRm4EQWyfhc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1016989225964-iv954fovtghge7ep4tl4gnivecrghi4l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
