@@ -90,6 +90,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
 
     override fun onCreateInputView(): View {
         th = Prefs.theme(this); loadPrefs()
+        window?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         val r = dp(28).toFloat()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -248,6 +249,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     /** Paint the system navigation bar the same colour as the keyboard (no black strip at the bottom). */
     private fun applyNav() {
         val w = window?.window ?: return
+        w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))   // no white corners behind the rounded keyboard
         w.navigationBarColor = th.bg
         if (android.os.Build.VERSION.SDK_INT >= 28) w.navigationBarDividerColor = th.bg
         val r = (th.bg shr 16) and 255; val g = (th.bg shr 8) and 255; val b = th.bg and 255

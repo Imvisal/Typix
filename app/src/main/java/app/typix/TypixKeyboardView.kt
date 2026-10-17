@@ -7,7 +7,11 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.media.AudioManager
+import android.os.Build
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.SoundEffectConstants
@@ -28,7 +32,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     /** 0 = return arrow, 1 = search, 2 = send, 3 = go / next, 4 = done */
     var enterKind = 0
         set(v) { if (field != v) { field = v; invalidate() } }
-    private var hints = true; private var soundStyle = 0; private var vibrate = false; private var borders = false; private var swipeCursor = true
+    private var hints = true; private var soundStyle = 0; private var vibrate = false; private var vibStrength = 1; private var borders = false; private var swipeCursor = true
     private var shift = false; private var caps = false; private var symbols = false; private var page2 = false
     private var lastShiftTap = 0L
 
@@ -60,6 +64,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private val pk = arrayOfNulls<Key>(maxP)
     private val fired = BooleanArray(maxP)
     private val startX = FloatArray(maxP)
+    private val startY = FloatArray(maxP)
     private var lpId = -1                  // pointer waiting for / showing the long-press popup
     private var spaceId = -1; private var spaceAcc = 0f
     private var popupKey: Key? = null; private var popupSel = -1
@@ -75,7 +80,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
             if (k.code == '.'.code) { openPopup(k); return }
             if (k.row == 0 && !symbols && k.code > 0 && k.code < 128) {
                 val i = "qwertyuiop".indexOf(k.code.toChar())
-                if (i >= 0) { fired[id] = true; if (vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS); l.onKey("1234567890"[i]) }
+                if (i >= 0) { fired[id] = true; buzz(true); l.onKey("1234567890"[i]) }
             }
         }
     }
@@ -129,7 +134,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         hintBase = mixColor(t.text, t.bg, 0.55f); hintP.color = hintBase
         rowDp = Prefs.rowDp(context).toFloat(); requestLayout()
         hints = Prefs.bool(context, "hints", true); soundStyle = Prefs.int(context, "soundstyle", 0).coerceIn(0, 2)
-        vibrate = Prefs.bool(context, "vibrate", false); borders = Prefs.bool(context, "borders", false)
+        vibrate = Prefs.bool(context, "vibrate", false); vibStrength = Prefs.int(context, "vibstr", 1).coerceIn(0, 2); borders = Prefs.bool(context, "borders", false)
         swipeCursor = Prefs.bool(context, "swipecursor", true)
         gap = floatArrayOf(0.6f, 1f, 1.5f)[Prefs.int(context, "keygap", 1).coerceIn(0, 2)]
         rad = floatArrayOf(12f, 5f, 22f)[Prefs.int(context, "keyshape", 0).coerceIn(0, 2)] * d
@@ -230,7 +235,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         var left = k.r.right - n * w; if (left < 4 * d) left = 4 * d
         val top = k.r.top - h - 6 * d
         popupRect.set(left, top, left + n * w, top + h)
-        if (vibrate) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        buzz(true)
         invalidate()
     }
 
@@ -260,11 +265,32 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     private fun repaint(k: Key) { k.r.roundOut(dirty); dirty.inset(-2, -2); invalidate(dirty) }
 
+    private val vibrator: Vibrator? by lazy {
+        try {
+            if (Build.VERSION.SDK_INT >= 31) (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+            else (context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator)
+        } catch (e: Exception) { null }
+    }
+
+    /** Key vibration straight from the phone's vibrator (does not depend on the system "touch feedback" setting). */
+    private fun buzz(long: Boolean) {
+        if (!vibrate) return
+        val v = vibrator ?: return
+        try {
+            if (!v.hasVibrator()) return
+            val ms = (longArrayOf(9, 16, 26)[vibStrength] * (if (long) 2 else 1))
+            if (Build.VERSION.SDK_INT >= 26) {
+                val amp = if (v.hasAmplitudeControl()) intArrayOf(70, 150, 255)[vibStrength] else VibrationEffect.DEFAULT_AMPLITUDE
+                v.vibrate(VibrationEffect.createOneShot(ms, amp))
+            } else v.vibrate(ms)
+        } catch (e: Exception) { }
+    }
+
     private val audio by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     /** Vibration and key sound (system sounds only; they follow the phone's "touch sounds" setting). */
     private fun feedback(code: Int = 0) {
-        if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        buzz(false)
         when (soundStyle) {
             1 -> audio.playSoundEffect(AudioManager.FX_KEY_CLICK)
             2 -> audio.playSoundEffect(when (code) {
@@ -295,8 +321,8 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         }
     }
 
-    private fun press(id: Int, k: Key, x: Float, single: Boolean) {
-        pk[id] = k; fired[id] = false; startX[id] = x
+    private fun press(id: Int, k: Key, x: Float, y: Float, single: Boolean) {
+        pk[id] = k; fired[id] = false; startX[id] = x; startY[id] = y
         feedback(k.code); repaint(k)
         when {
             k.code == -2 -> { fired[id] = true; l.onBackspace(); postDelayed(rep, 400) }
@@ -320,8 +346,9 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         popupKey = null
         repaint(k)
         if (!cancel && !fired[id]) {
-            val up = hit(x, y)
-            if (k === up || k.code == -1) fire(k)
+            // Fast typing: fingers drift a little before lifting. Type the key that was PRESSED unless the finger really slid away.
+            val dx = x - startX[id]; val dy = y - startY[id]
+            if (k.code == -1 || dx * dx + dy * dy <= (40 * d) * (40 * d) || hit(x, y) === k) fire(k)
         }
         fired[id] = false
     }
@@ -335,7 +362,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
                 if (e.pointerCount > 1) for (j in 0 until maxP) { val pkk = pk[j]; if (pkk != null && !fired[j] && pkk.code != -1 && pkk.code != -2 && pkk.code != -3) { fired[j] = true; fire(pkk) } }
                 if (lpId >= 0) { removeCallbacks(longPress); lpId = -1 }
                 val k = hit(e.getX(i), e.getY(i)) ?: return true
-                press(id, k, e.getX(i), e.pointerCount == 1)
+                press(id, k, e.getX(i), e.getY(i), e.pointerCount == 1)
             }
             MotionEvent.ACTION_MOVE -> {
                 val pop = popupKey

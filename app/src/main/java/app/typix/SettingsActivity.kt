@@ -331,6 +331,8 @@ class SettingsActivity : Activity() {
         c.addView(label("Feedback"))
         k = card()
         switchRow(k, th, "vibrate", "Vibrate on key press", null, false)
+        k.addView(divider())
+        k.addView(seg(th, listOf("Light", "Medium", "Strong"), Prefs.int(this, "vibstr", 1)) { Prefs.setInt(this, "vibstr", it); show(2) }, lp(top = 12, bottom = 8))
         c.addView(k)
         c.addView(label("Key sound"))
         k = card(); k.setPadding(dp(16), dp(14), dp(16), dp(14))
