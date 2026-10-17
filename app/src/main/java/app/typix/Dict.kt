@@ -17,12 +17,13 @@ object Dict {
         } catch (e: Exception) { }
     }
 
-    fun exact(roman: String): String? = exact[roman.lowercase()]
+    fun exact(roman: String): String? = if (roman.any { it.isUpperCase() }) null else exact[roman]
 
     fun suggest(buf: String): List<String> {
         val lc = buf.lowercase()
         val out = LinkedHashSet<String>()
         out.add(Transliterator.transliterate(buf))
+        if (buf.any { it.isUpperCase() }) return out.take(3)   // capitals are deliberate: no word-list guessing
         exact[lc]?.let { out.add(it) }
         if (lc.endsWith("a")) out.add(Transliterator.transliterate(buf + "a"))
         for ((r, s) in entries) { if (r.startsWith(lc) && r != lc) { out.add(s); if (out.size >= 4) break } }

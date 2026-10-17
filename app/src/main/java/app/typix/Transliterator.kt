@@ -1,6 +1,6 @@
 package app.typix
 
-/** Rule-based Singlish -> Sinhala. Lowercase = normal, Capital (N L S T D B G C J) = aspirated/retroflex letters. */
+/** Rule-based Singlish -> Sinhala. Lowercase = normal, Capital (A K N L S T D B G C J) = special letters (A = ඇ, N = ණ ...). */
 object Transliterator {
     private const val HAL = "්"
     private val vowels = listOf(
@@ -15,7 +15,7 @@ object Transliterator {
         "k" to "ක", "g" to "ග", "c" to "ච", "j" to "ජ", "t" to "ට", "d" to "ඩ", "n" to "න",
         "p" to "ප", "b" to "බ", "m" to "ම", "y" to "ය", "r" to "ර", "l" to "ල", "w" to "ව",
         "v" to "ව", "s" to "ස", "h" to "හ", "f" to "ෆ",
-        "N" to "ණ", "L" to "ළ", "S" to "ෂ", "T" to "ඨ", "D" to "ඪ", "B" to "භ", "G" to "ඝ", "C" to "ඡ", "J" to "ඣ"
+        "K" to "ඛ", "N" to "ණ", "L" to "ළ", "S" to "ෂ", "T" to "ඨ", "D" to "ඪ", "B" to "භ", "G" to "ඝ", "C" to "ඡ", "J" to "ඣ"
     )
 
     private fun vowelAt(lc: String, i: Int) = vowels.firstOrNull { lc.startsWith(it.first, i) }
@@ -29,7 +29,8 @@ object Transliterator {
         return null
     }
 
-    fun transliterate(input: String): String {
+    fun transliterate(raw: String): String {
+        val input = raw.replace("A", "ae")   // capital A = ඇ (shift + a)
         val lc = input.lowercase()
         val out = StringBuilder()
         var i = 0

@@ -10,26 +10,32 @@ import android.view.MotionEvent
 import android.view.SoundEffectConstants
 import android.view.View
 
-/** Flat, modern keyboard drawn on one Canvas (no per-key Views): light on RAM and CPU. */
+/**
+ * Flat, modern keyboard drawn on one Canvas (no per-key Views): light on RAM and CPU.
+ * Look follows the Typix design: soft rounded keys, tiny Sinhala hint top-right, lime return key,
+ * "typix · සිංහල" space bar.
+ */
 class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     interface Listener { fun onKey(c: Char); fun onSpace(); fun onBackspace(); fun onEnter(); fun onLang(); fun onPicker() }
     var sinhala = true
-    private var hints = true; private var sound = false; private var vibrate = true; private var borders = true
+        set(v) { field = v; invalidate() }
+    private var hints = true; private var sound = false; private var vibrate = true; private var borders = false
     private var shift = false; private var symbols = false
     private class Key(val label: String, val code: Int, val x: Float, val w: Float, val row: Int, val r: RectF = RectF())
     private var keys: List<Key> = emptyList()
     private val d = ctx.resources.displayMetrics.density
     private val bg = Paint()
-    private val fillP = Paint(Paint.ANTI_ALIAS_FLAG); private val specialP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val fillP = Paint(Paint.ANTI_ALIAS_FLAG); private val specialP = Paint(Paint.ANTI_ALIAS_FLAG); private val litP = Paint(Paint.ANTI_ALIAS_FLAG)
     private val strokeP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1f * d }
-    private val litP = Paint(Paint.ANTI_ALIAS_FLAG); private val accentP = Paint(Paint.ANTI_ALIAS_FLAG); private val pillP = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val ic = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; strokeWidth = 1.9f * d }
-    private val path = Path(); private val tmp = RectF()
+    private val accentP = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ic = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND; strokeWidth = 2f * d }
+    private val path = Path()
     private var rowDp = 54f
-    private val big = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 21 * d }
-    private val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 12.5f * d }
+    private val face = Fonts.get(ctx, 500); private val faceBold = Fonts.get(ctx, 600)
+    private val big = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 22 * d; typeface = face }
+    private val small = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 15 * d; typeface = faceBold }
+    private val spaceP = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; textSize = 13 * d; typeface = face; letterSpacing = 0.12f }
     private val hintP = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT; textSize = 10 * d }
-    private val digitP = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.RIGHT; textSize = 10.5f * d }
     private var textColor = 0; private var dimColor = 0; private var onAccent = 0; private var accent = 0
     private var down: Key? = null
     private var consumed = false
@@ -47,109 +53,114 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private val hintMap = mapOf('q' to "ඤ", 'w' to "ව", 'e' to "එ", 'r' to "ර", 't' to "ත", 'y' to "ය", 'u' to "උ", 'i' to "ඉ",
         'o' to "ඔ", 'p' to "ප", 'a' to "අ", 's' to "ස", 'd' to "ද", 'f' to "ෆ", 'g' to "ග", 'h' to "හ", 'j' to "ජ", 'k' to "ක",
         'l' to "ල", 'z' to "ශ", 'x' to "ඛ", 'c' to "ච", 'v' to "ව", 'b' to "බ", 'n' to "න", 'm' to "ම")
+    /** Letters you get with Shift (capital): A = ඇ, N = ණ, L = ළ ... shown as the key hint while Shift is on. */
+    private val shiftMap = mapOf('a' to "ඇ", 'k' to "ඛ", 'n' to "ණ", 'l' to "ළ", 's' to "ෂ", 't' to "ඨ", 'd' to "ඪ", 'b' to "භ", 'g' to "ඝ", 'c' to "ඡ", 'j' to "ඣ")
+    private var hintBase = 0
 
     init { build(); applySettings() }
 
     private fun build() {
-        val rows = if (symbols) listOf("1234567890", "@#\$&-+()/", "*\"':;!?") else listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+        val rows = if (symbols) listOf("1234567890", "@#\$&-+()/", ",\"':;!?") else listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
         val o = ArrayList<Key>()
         rows[0].forEachIndexed { i, c -> o.add(Key(c.toString(), c.code, i.toFloat(), 1f, 0)) }
         rows[1].forEachIndexed { i, c -> o.add(Key(c.toString(), c.code, 0.5f + i, 1f, 1)) }
         o.add(if (symbols) Key("=", '='.code, 0f, 1.5f, 2) else Key("⇧", -5, 0f, 1.5f, 2))
         rows[2].forEachIndexed { i, c -> o.add(Key(c.toString(), c.code, 1.5f + i, 1f, 2)) }
         o.add(Key("⌫", -2, 8.5f, 1.5f, 2))
-        o.add(Key(if (symbols) "ABC" else "?123", -6, 0f, 1.5f, 3)); o.add(Key("🌐", -7, 1.5f, 1f, 3)); o.add(Key(",", ','.code, 2.5f, 1f, 3))
-        o.add(Key("␣", -1, 3.5f, 4f, 3)); o.add(Key(".", '.'.code, 7.5f, 1f, 3)); o.add(Key("⏎", -3, 8.5f, 1.5f, 3))
+        o.add(Key(if (symbols) "ABC" else "?123", -6, 0f, 1.5f, 3)); o.add(Key("🌐", -7, 1.5f, 1f, 3))
+        o.add(Key("␣", -1, 2.5f, 5f, 3)); o.add(Key(".", '.'.code, 7.5f, 1f, 3)); o.add(Key("⏎", -3, 8.5f, 1.5f, 3))
         keys = o; layoutKeys(); invalidate()
     }
 
     private fun layoutKeys() {
         if (width == 0) return
-        val u = width / 10f; val rh = rowDp * d; val pad = (if (borders) 3f else 2f) * d; val top = 6 * d
-        for (k in keys) k.r.set(k.x * u + pad, top + k.row * rh + pad, (k.x + k.w) * u - pad, top + (k.row + 1) * rh - pad)
-    }
-
-    private fun mix(a: Int, b: Int, t: Float): Int {
-        fun ch(s: Int) = (((a shr s) and 255) * (1 - t) + ((b shr s) and 255) * t).toInt()
-        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+        val u = width / 10f; val rh = rowDp * d; val padX = 2.5f * d; val padY = 3.5f * d; val top = 4 * d
+        for (k in keys) k.r.set(k.x * u + padX, top + k.row * rh + padY, (k.x + k.w) * u - padX, top + (k.row + 1) * rh - padY)
     }
 
     fun applySettings() {
         val t = Prefs.theme(context)
-        bg.color = t.bg; litP.color = t.key; accentP.color = t.accent; accent = t.accent; textColor = t.text; onAccent = t.onAccent
-        fillP.color = mix(t.key, t.bg, 0.55f); specialP.color = mix(t.key, t.bg, 0.2f); strokeP.color = mix(t.key, t.text, 0.22f)
-        dimColor = mix(t.text, t.bg, 0.4f); pillP.color = mix(t.key, t.bg, 0.3f); hintP.color = t.accent; digitP.color = dimColor
-        rowDp = Prefs.rowDp(context).toFloat(); requestLayout(); layoutKeys()
-        hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false); vibrate = Prefs.bool(context, "vibrate", true); borders = Prefs.bool(context, "borders", true)
+        bg.color = t.bg; accentP.color = t.accent; accent = t.accent; textColor = t.text; onAccent = t.onAccent
+        fillP.color = t.key
+        specialP.color = if (lumaOf(t.bg) < 128) mixColor(t.key, t.bg, 0.25f) else mixColor(t.key, t.bg, 0.55f)
+        litP.color = mixColor(t.key, t.text, if (lumaOf(t.bg) < 128) 0.16f else 0.10f)
+        strokeP.color = mixColor(t.key, t.text, 0.22f)
+        dimColor = mixColor(t.text, t.bg, 0.45f)
+        hintBase = mixColor(t.text, t.bg, 0.55f); hintP.color = hintBase
+        rowDp = Prefs.rowDp(context).toFloat(); requestLayout()
+        hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false)
+        vibrate = Prefs.bool(context, "vibrate", true); borders = Prefs.bool(context, "borders", false)
         layoutKeys(); invalidate()
     }
 
-    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), (4 * rowDp * d + 12 * d).toInt())
+    override fun onMeasure(w: Int, h: Int) = setMeasuredDimension(MeasureSpec.getSize(w), (4 * rowDp * d + 8 * d).toInt())
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) = layoutKeys()
 
     override fun onDraw(c: Canvas) {
         c.drawPaint(bg)
+        val rad = 12 * d
         for (k in keys) {
-            val lit = k === down || (k.code == -5 && shift)
+            val pressed = k === down
             val cx = k.r.centerX(); val cy = k.r.centerY()
+            if (k.code == -3) {
+                accentP.alpha = if (pressed) 200 else 255
+                c.drawRoundRect(k.r, rad, rad, accentP); accentP.alpha = 255
+                ic.color = onAccent; ic.strokeWidth = 2.2f * d; path.reset()
+                path.moveTo(cx + 7 * d, cy - 6 * d); path.lineTo(cx + 7 * d, cy + 1 * d); path.lineTo(cx - 7 * d, cy + 1 * d)
+                path.moveTo(cx - 2.5f * d, cy - 3.5f * d); path.lineTo(cx - 7 * d, cy + 1 * d); path.lineTo(cx - 2.5f * d, cy + 5.5f * d)
+                c.drawPath(path, ic); ic.strokeWidth = 2f * d
+                continue
+            }
+            val base = if (k.code < 0 && k.code != -1) specialP else fillP
+            c.drawRoundRect(k.r, rad, rad, if (pressed) litP else base)
+            if (borders) c.drawRoundRect(k.r, rad, rad, strokeP)
             when (k.code) {
                 -1 -> {
-                    val h = k.r.height() * 0.56f
-                    tmp.set(k.r.left + 2 * d, cy - h / 2, k.r.right - 2 * d, cy + h / 2)
-                    c.drawRoundRect(tmp, h / 2, h / 2, if (lit) accentP else pillP)
-                    small.color = if (lit) onAccent else dimColor
-                    c.drawText(if (sinhala) "සිංහල" else "English", cx, cy + 4.5f * d, small)
+                    spaceP.color = dimColor
+                    c.drawText(if (sinhala) "typix · සිංහල" else "typix · English", cx, cy + 4.5f * d, spaceP)
                 }
-                -3 -> {
-                    c.drawCircle(cx, cy, minOf(k.r.width(), k.r.height()) / 2f - d, accentP)
-                    ic.color = onAccent; path.reset()
-                    path.moveTo(cx - 3 * d, cy - 6 * d); path.lineTo(cx + 3 * d, cy); path.lineTo(cx - 3 * d, cy + 6 * d)
+                -5 -> {
+                    ic.color = if (shift) accent else textColor; path.reset()
+                    path.moveTo(cx, cy - 8 * d); path.lineTo(cx + 8 * d, cy); path.lineTo(cx + 4 * d, cy); path.lineTo(cx + 4 * d, cy + 7 * d)
+                    path.lineTo(cx - 4 * d, cy + 7 * d); path.lineTo(cx - 4 * d, cy); path.lineTo(cx - 8 * d, cy); path.close()
+                    ic.style = if (shift) Paint.Style.FILL_AND_STROKE else Paint.Style.STROKE
+                    c.drawPath(path, ic); ic.style = Paint.Style.STROKE
+                }
+                -2 -> {
+                    ic.color = textColor; path.reset()
+                    path.moveTo(cx - 10 * d, cy); path.lineTo(cx - 4 * d, cy - 7 * d); path.lineTo(cx + 10 * d, cy - 7 * d)
+                    path.lineTo(cx + 10 * d, cy + 7 * d); path.lineTo(cx - 4 * d, cy + 7 * d); path.close()
                     c.drawPath(path, ic)
+                    c.drawLine(cx - d, cy - 3 * d, cx + 5 * d, cy + 3 * d, ic); c.drawLine(cx + 5 * d, cy - 3 * d, cx - d, cy + 3 * d, ic)
                 }
+                -7 -> {
+                    ic.color = textColor; ic.strokeWidth = 1.8f * d
+                    c.drawCircle(cx, cy, 8.5f * d, ic)
+                    c.drawOval(cx - 3.5f * d, cy - 8.5f * d, cx + 3.5f * d, cy + 8.5f * d, ic)
+                    c.drawLine(cx - 8.5f * d, cy, cx + 8.5f * d, cy, ic); ic.strokeWidth = 2f * d
+                }
+                -6 -> { small.color = textColor; c.drawText(k.label, cx, cy + 5.5f * d, small) }
                 else -> {
-                    if (borders) {
-                        c.drawRoundRect(k.r, 10 * d, 10 * d, if (lit) litP else if (k.code < 0) specialP else fillP)
-                        c.drawRoundRect(k.r, 10 * d, 10 * d, strokeP)
-                    } else if (lit) c.drawRoundRect(k.r, 10 * d, 10 * d, litP)
-                    when (k.code) {
-                        -5 -> {
-                            ic.color = if (shift) accent else textColor; path.reset()
-                            path.moveTo(cx, cy - 8 * d); path.lineTo(cx + 8 * d, cy); path.lineTo(cx + 4 * d, cy); path.lineTo(cx + 4 * d, cy + 7 * d)
-                            path.lineTo(cx - 4 * d, cy + 7 * d); path.lineTo(cx - 4 * d, cy); path.lineTo(cx - 8 * d, cy); path.close()
-                            ic.style = if (shift) Paint.Style.FILL_AND_STROKE else Paint.Style.STROKE
-                            c.drawPath(path, ic); ic.style = Paint.Style.STROKE
-                        }
-                        -2 -> {
-                            ic.color = textColor; path.reset()
-                            path.moveTo(cx - 10 * d, cy); path.lineTo(cx - 4 * d, cy - 7 * d); path.lineTo(cx + 10 * d, cy - 7 * d)
-                            path.lineTo(cx + 10 * d, cy + 7 * d); path.lineTo(cx - 4 * d, cy + 7 * d); path.close()
-                            c.drawPath(path, ic)
-                            c.drawLine(cx - d, cy - 3 * d, cx + 5 * d, cy + 3 * d, ic); c.drawLine(cx + 5 * d, cy - 3 * d, cx - d, cy + 3 * d, ic)
-                        }
-                        -7 -> {
-                            ic.color = textColor
-                            c.drawCircle(cx, cy, 8.5f * d, ic); tmp.set(cx - 3.5f * d, cy - 8.5f * d, cx + 3.5f * d, cy + 8.5f * d); c.drawOval(tmp, ic)
-                            c.drawLine(cx - 8.5f * d, cy, cx + 8.5f * d, cy, ic)
-                        }
-                        -6 -> {
-                            ic.color = dimColor; ic.strokeWidth = 1.4f * d
-                            c.drawCircle(cx, cy - 11 * d, 4.5f * d, ic); ic.strokeWidth = 1.9f * d
-                            small.color = textColor; c.drawText(k.label, cx, cy + 8 * d, small)
-                        }
-                        else -> {
-                            val isLetter = k.code > 0 && k.label[0].isLetter()
-                            big.color = textColor
-                            c.drawText(if (isLetter && shift) k.label.uppercase() else k.label, cx, cy + 7 * d, big)
-                            if (k.row == 0 && !symbols) c.drawText("1234567890"[k.x.toInt()].toString(), k.r.right - 5 * d, k.r.top + 12 * d, digitP)
-                            if (hints && sinhala && isLetter && !shift) hintMap[k.code.toChar()]?.let { c.drawText(it, k.r.right - 5 * d, k.r.bottom - 6 * d, hintP) }
-                        }
+                    val isLetter = k.code > 0 && k.label[0].isLetter()
+                    big.color = textColor
+                    c.drawText(if (isLetter && shift) k.label.uppercase() else k.label, cx, cy + 7.5f * d, big)
+                    val hint: String? = when {
+                        hints && sinhala && isLetter -> if (shift) shiftMap[k.code.toChar()] else hintMap[k.code.toChar()]
+                        k.row == 0 && !symbols && isLetter -> "1234567890"[k.x.toInt()].toString()
+                        else -> null
                     }
+                    hintP.color = if (shift) accent else hintBase
+                    if (hint != null) c.drawText(hint, k.r.right - 5 * d, k.r.top + 12.5f * d, hintP)
                 }
             }
         }
     }
 
     private fun hit(x: Float, y: Float) = keys.firstOrNull { it.r.contains(x, y) }
+        ?: keys.minByOrNull { val dx = x - it.r.centerX(); val dy = y - it.r.centerY(); dx * dx + dy * dy }?.takeIf {
+            // forgive taps that land in the gaps between keys
+            x >= it.r.left - 4 * d && x <= it.r.right + 4 * d && y >= it.r.top - 5 * d && y <= it.r.bottom + 5 * d
+        }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {

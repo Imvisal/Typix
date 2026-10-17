@@ -2,6 +2,8 @@ package app.typix
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
 import android.inputmethodservice.InputMethodService
 import android.os.SystemClock
@@ -23,8 +25,8 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private var keys: TypixKeyboardView? = null
     private lateinit var body: FrameLayout
     private lateinit var strip: LinearLayout
-    private lateinit var tabEn: TextView
-    private lateinit var tabSi: TextView
+    private lateinit var tabEn: TabView
+    private lateinit var tabSi: TabView
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun lpw(w: Float) = LinearLayout.LayoutParams(0, -1, w).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
@@ -36,8 +38,8 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
 
     // ---------- views ----------
     private fun cell(t: String, size: Float, color: Int, bg: Int = 0, onClick: () -> Unit) = TextView(this).apply {
-        text = t; textSize = size; setTextColor(color); gravity = Gravity.CENTER
-        if (bg != 0) background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(bg) }
+        text = t; textSize = size; setTextColor(color); gravity = Gravity.CENTER; typeface = Fonts.get(this@TypixIME, 500)
+        if (bg != 0) background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(bg) }
         setOnClickListener { onClick() }
     }
     private fun btn(t: String, accent: Boolean = false, onClick: () -> Unit) =
@@ -45,37 +47,42 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private fun hrow(vararg v: View) = LinearLayout(this).apply { v.forEach { addView(it, lpw(1f)) } }
 
     private var panel = 0
-    private lateinit var icons: List<IconView>
-    private fun bodyH() = dp((4 * Prefs.rowDp(this) + 12).toInt())
+    private val iconPanels = ArrayList<Pair<IconView, Int>>()   // icon -> panel it opens (0 = none)
+    private val iconBoxes = ArrayList<FrameLayout>()
+    private fun bodyH() = dp((4 * Prefs.rowDp(this) + 8).toInt())
 
     override fun onCreateInputView(): View {
         th = Prefs.theme(this)
-        val r = dp(22).toFloat()
+        val r = dp(28).toFloat()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { setColor(th.bg); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
-            setPadding(dp(4), dp(6), dp(4), dp(8))
+            setPadding(dp(4), dp(8), dp(4), dp(8))
         }
+        iconPanels.clear(); iconBoxes.clear()
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        bar.addView(LogoView(this, th.accent).apply { setOnClickListener { openApp() } },
-            LinearLayout.LayoutParams(dp(36), dp(36)).apply { setMargins(dp(4), 0, dp(6), 0) })
-        tabEn = cell("En", 16f, th.text) { setLang(false) }
-        tabSi = cell("සිං", 17f, th.text) { setLang(true) }
-        bar.addView(tabEn, btnLp()); bar.addView(tabSi, btnLp())
-        val kinds = listOf(IconView.EMOJI, IconView.CLIP, IconView.EDIT, IconView.TUNE)
-        val made = kinds.mapIndexed { i, k ->
-            val iv = IconView(this, k, th.text)
+        bar.addView(LogoView(this, th.accent).apply { setOnClickListener { togglePanel(4) } },
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply { setMargins(dp(8), 0, dp(8), 0) })
+        tabEn = TabView(this, "En", 16f) { setLang(false) }
+        tabSi = TabView(this, "සිං", 17f) { setLang(true) }
+        bar.addView(tabEn, LinearLayout.LayoutParams(dp(52), dp(40)).apply { setMargins(dp(2), 0, dp(2), 0) })
+        bar.addView(tabSi, LinearLayout.LayoutParams(dp(58), dp(40)).apply { setMargins(dp(2), 0, dp(2), 0) })
+        fun tool(kind: Int, panelId: Int, action: () -> Unit) {
+            val iv = IconView(this, kind, th.text)
             val fl = FrameLayout(this).apply {
-                background = subtle()
                 addView(iv, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
-                setOnClickListener { when (i) { 0, 1, 2 -> togglePanel(i + 1); else -> openApp() } }
+                setOnClickListener { action() }
             }
-            bar.addView(fl, btnLp()); iv
+            iconPanels.add(iv to panelId); iconBoxes.add(fl)
+            bar.addView(fl, LinearLayout.LayoutParams(dp(42), dp(40)))
         }
-        icons = made
-        root.addView(bar, LinearLayout.LayoutParams(-1, dp(42)))
+        tool(IconView.EMOJI, 1) { togglePanel(1) }
+        tool(IconView.MIC, 0) { startVoice() }
+        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        tool(IconView.SUN, 0) { openApp() }
+        root.addView(bar, LinearLayout.LayoutParams(-1, dp(44)))
         strip = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        root.addView(strip, LinearLayout.LayoutParams(-1, dp(38)))
+        root.addView(strip, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(2), dp(4), dp(2)) })
         body = FrameLayout(this)
         root.addView(body, LinearLayout.LayoutParams(-1, bodyH()))
         keys = TypixKeyboardView(this, this).also { it.sinhala = sinhala }
@@ -83,8 +90,17 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         return root
     }
 
-    private fun btnLp() = LinearLayout.LayoutParams(0, dp(36), 1f).apply { setMargins(dp(2), 0, dp(2), 0) }
-    private fun subtle() = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor((th.key and 0x00FFFFFF) or 0x66000000) }
+    /** Hand over to the voice-typing keyboard (e.g. Google voice typing) if one is enabled. */
+    private fun startVoice() {
+        flush()
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            for (info in imm.enabledInputMethodList) for (st in imm.getEnabledInputMethodSubtypeList(info, true)) {
+                if (st.mode == "voice") { try { switchInputMethod(info.id, st); return } catch (e: Exception) { } }
+            }
+        }
+        Toast.makeText(this, "No voice keyboard is enabled on this phone", Toast.LENGTH_SHORT).show()
+    }
 
     /** Paint the system navigation bar the same colour as the keyboard (no black strip at the bottom). */
     private fun applyNav() {
@@ -98,21 +114,20 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     private fun togglePanel(n: Int) {
-        if (panel == n) showKeys() else when (n) { 1 -> showEmoji(); 2 -> showClip(); else -> showEditor() }
+        if (panel == n) showKeys() else when (n) { 1 -> showEmoji(); 2 -> showClip(); 3 -> showEditor(); else -> showMenu() }
     }
 
     private fun refreshIcons() {
-        if (!::icons.isInitialized) return
-        val dim = (th.text and 0x00FFFFFF) or 0xCC000000.toInt()
-        icons.forEachIndexed { i, v -> v.tint(if (i < 3 && panel == i + 1) th.accent else dim) }
-    }
-
-    private fun refreshTabs() {
-        for ((v, on) in listOf(tabEn to !sinhala, tabSi to sinhala)) {
-            v.setTextColor(if (on) th.accent else (th.text and 0x00FFFFFF) or 0x99000000.toInt())
-            v.background = if (on) GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(th.key) } else subtle()
+        if (iconPanels.isEmpty()) return
+        val dim = mixColor(th.text, th.bg, 0.30f)
+        iconPanels.forEachIndexed { i, (v, pn) ->
+            val on = pn != 0 && panel == pn
+            v.tint(if (on) th.accent else dim)
+            iconBoxes[i].background = if (on) GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(th.key) } else null
         }
     }
+
+    private fun refreshTabs() { tabEn.setActive(!sinhala, th); tabSi.setActive(sinhala, th) }
 
     private val quickEmoji = listOf("😂", "❤️", "😊", "🙏", "👍", "😍", "😭")
     private fun updateStrip() {
@@ -120,8 +135,10 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         if (secure) return
         if (sinhala && buf.isNotEmpty()) {
             Dict.suggest(buf.toString()).forEachIndexed { i, w ->
-                if (i > 0) strip.addView(View(this).apply { setBackgroundColor(th.key) }, LinearLayout.LayoutParams(dp(1), dp(20)))
-                strip.addView(cell(w, 18f, if (i == 0) th.accent else th.text) { pick(w) }, LinearLayout.LayoutParams(0, -1, 1f))
+                val c = cell(w, 19f, th.text) { pick(w) }
+                c.typeface = Fonts.get(this, if (i == 0) 600 else 500)
+                if (i == 0) c.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(th.key) }
+                strip.addView(c, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
             }
             return
         }
@@ -129,8 +146,12 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             strip.addView(cell(e, 22f, th.text) { commit(e) }, LinearLayout.LayoutParams(0, -1, 1f))
     }
 
-    private fun showKeys() { panel = 0; body.removeAllViews(); keys?.let { body.addView(it) }; refreshIcons() }
-    private fun panelBase() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; body.removeAllViews(); body.addView(this, FrameLayout.LayoutParams(-1, -1)) }
+    private fun setPanelMode(on: Boolean) {
+        strip.visibility = if (on) View.GONE else View.VISIBLE
+        body.layoutParams = LinearLayout.LayoutParams(-1, bodyH() + if (on) dp(52) else 0)
+    }
+    private fun showKeys() { panel = 0; setPanelMode(false); body.removeAllViews(); keys?.let { body.addView(it) }; refreshIcons() }
+    private fun panelBase() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPanelMode(true); body.removeAllViews(); body.addView(this, FrameLayout.LayoutParams(-1, -1)) }
     private fun bottom(vararg extra: Pair<String, () -> Unit>) = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
         addView(cell("ABC", 15f, th.text, th.key) { showKeys() }, LinearLayout.LayoutParams(dp(72), -1).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
@@ -139,26 +160,74 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     // ---------- panels ----------
+    /** Tools menu (opened from the logo): clipboard, text editor, settings. Keeps the toolbar identical to the design. */
+    private fun showMenu() {
+        panel = 4; refreshIcons()
+        val col = panelBase()
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+        fun tile(kind: Int, name: String, act: () -> Unit) = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+            background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(th.key) }
+            addView(IconView(this@TypixIME, kind, th.accent), LinearLayout.LayoutParams(dp(30), dp(30)))
+            addView(TextView(this@TypixIME).apply { text = name; textSize = 15f; setTextColor(th.text); typeface = Fonts.get(this@TypixIME, 500); setPadding(0, dp(8), 0, 0) })
+            setOnClickListener { act() }
+        }
+        val m = LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(6), dp(10), dp(6), dp(10)) }
+        row.addView(tile(IconView.CLIP, "Clipboard") { showClip() }, m)
+        row.addView(tile(IconView.EDIT, "Text editor") { showEditor() }, LinearLayout.LayoutParams(m))
+        row.addView(tile(IconView.TUNE, "Settings") { openApp() }, LinearLayout.LayoutParams(m))
+        col.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
+        col.addView(bottom(), LinearLayout.LayoutParams(-1, dp(44)))
+    }
+
+    private var emojiCat = -1
+    private class EmojiCat(val icon: String, val name: String, val list: () -> List<String>)
+
     private fun showEmoji() {
         panel = 1; refreshIcons()
         val col = panelBase()
-        val scroll = ScrollView(this)
-        val tabs = LinearLayout(this)
+        val cats = listOf(
+            EmojiCat("🕘", "Recent") { Prefs.recent(this) }, EmojiCat("😀", "Smileys") { Emojis.smileys },
+            EmojiCat("👋", "People") { Emojis.people }, EmojiCat("🐱", "Animals") { Emojis.animals },
+            EmojiCat("🍔", "Food") { Emojis.food }, EmojiCat("⚽", "Activities") { Emojis.activities },
+            EmojiCat("🚗", "Travel") { Emojis.travel }, EmojiCat("💡", "Objects") { Emojis.objects },
+            EmojiCat("❤️", "Symbols") { Emojis.symbols }, EmojiCat("🏁", "Flags") { Emojis.flags }
+        )
+        if (emojiCat < 0) emojiCat = if (Prefs.recent(this).isNotEmpty()) 0 else 1
+        val dim = mixColor(th.text, th.bg, 0.40f)
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val title = TextView(this).apply { textSize = 13f; setTextColor(dim); typeface = Fonts.get(this@TypixIME, 500); setPadding(dp(12), dp(6), 0, dp(2)) }
         val cw = (resources.displayMetrics.widthPixels - dp(8)) / 7
-        fun fill(list: List<String>) {
-            scroll.removeAllViews()
-            val g = GridLayout(this).apply { columnCount = 7 }
-            for (e in list) g.addView(cell(e, 25f, th.text) { commit(e); Prefs.addRecent(this@TypixIME, e) },
-                GridLayout.LayoutParams().apply { width = cw; height = dp(46) })
-            scroll.addView(g)
+        val tabViews = ArrayList<TabView>()
+        fun select(i: Int) {
+            emojiCat = i
+            tabViews.forEachIndexed { j, t -> t.setActive(j == i, th); t.alpha = if (j == i) 1f else 0.6f }
+            title.text = cats[i].name.uppercase()
+            val list = cats[i].list()
+            scroll.removeAllViews(); scroll.scrollTo(0, 0)
+            if (list.isEmpty()) {
+                scroll.addView(TextView(this).apply {
+                    text = "No recent emojis yet\nEmojis you use will show up here"; textSize = 14f; gravity = Gravity.CENTER
+                    setTextColor(dim); typeface = Fonts.get(this@TypixIME, 400); setPadding(dp(16), dp(40), dp(16), 0)
+                })
+            } else {
+                val g = GridLayout(this).apply { columnCount = 7 }
+                for (e in list) g.addView(cell(e, 25f, th.text) { commit(e); Prefs.addRecent(this@TypixIME, e) },
+                    GridLayout.LayoutParams().apply { width = cw; height = dp(46) })
+                scroll.addView(g)
+            }
         }
-        val recent = Prefs.recent(this).ifEmpty { Emojis.smileys.take(21) }
-        val cats = listOf("🕘" to recent, "😀" to Emojis.smileys, "👋" to Emojis.people, "🐱" to Emojis.animals, "🍔" to Emojis.food, "⚽" to Emojis.activities, "🚗" to Emojis.travel, "💡" to Emojis.objects, "❤️" to Emojis.symbols, "🏁" to Emojis.flags)
-        for ((icon, list) in cats) tabs.addView(cell(icon, 20f, th.text) { fill(list) }, LinearLayout.LayoutParams(dp(48), -1))
-        fill(recent)
-        col.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(tabs) }, LinearLayout.LayoutParams(-1, dp(40)))
+        val tabs = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        cats.forEachIndexed { i, c ->
+            val t = TabView(this, c.icon, 19f) { select(i) }
+            tabViews.add(t); tabs.addView(t, LinearLayout.LayoutParams(dp(50), dp(38)).apply { setMargins(dp(2), 0, dp(2), 0) })
+        }
+        col.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setPadding(dp(4), 0, dp(4), 0); addView(tabs) }, LinearLayout.LayoutParams(-1, dp(42)))
+        col.addView(View(this).apply { setBackgroundColor(th.key) }, LinearLayout.LayoutParams(-1, dp(1)).apply { setMargins(dp(8), dp(3), dp(8), 0) })
+        col.addView(title, LinearLayout.LayoutParams(-1, -2))
         col.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        col.addView(bottom("⌫" to { onBackspace() }), LinearLayout.LayoutParams(-1, dp(40)))
+        col.addView(bottom("⌫" to { onBackspace() }), LinearLayout.LayoutParams(-1, dp(44)))
+        select(emojiCat)
     }
 
     private fun showClip() {
@@ -278,4 +347,23 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     override fun onEnter() { flush(); sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER) }
     override fun onLang() = setLang(!sinhala)
     override fun onPicker() = switchKeyboard()
+}
+
+/** Language tab: label, tinted pill and a thin accent underline when active (matches the design). */
+class TabView(ctx: Context, label: String, size: Float, private val onTap: () -> Unit) : TextView(ctx) {
+    private var active = false
+    private var accent = 0
+    private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val d = ctx.resources.displayMetrics.density
+    init { text = label; textSize = size; gravity = Gravity.CENTER; typeface = Fonts.get(ctx, 600); setOnClickListener { onTap() } }
+    fun setActive(on: Boolean, th: Theme) {
+        active = on; accent = th.accent
+        setTextColor(if (on) th.text else mixColor(th.text, th.bg, 0.45f))
+        background = if (on) GradientDrawable().apply { cornerRadii = floatArrayOf(12 * d, 12 * d, 12 * d, 12 * d, 4 * d, 4 * d, 4 * d, 4 * d); setColor(th.key) } else null
+        invalidate()
+    }
+    override fun onDraw(c: Canvas) {
+        super.onDraw(c)
+        if (active) { p.color = accent; c.drawRoundRect(width * 0.16f, height - 3 * d, width * 0.84f, height.toFloat(), 1.5f * d, 1.5f * d, p) }
+    }
 }

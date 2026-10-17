@@ -9,7 +9,7 @@ import android.view.View
 
 /** Crisp line icons drawn on a 24x24 grid (no images, no emoji fonts). */
 class IconView(ctx: Context, private val kind: Int, private var color: Int) : View(ctx) {
-    companion object { const val EMOJI = 0; const val CLIP = 1; const val EDIT = 2; const val TUNE = 3; const val GLOBE = 4; const val HOME = 5; const val PALETTE = 6 }
+    companion object { const val EMOJI = 0; const val CLIP = 1; const val EDIT = 2; const val TUNE = 3; const val GLOBE = 4; const val HOME = 5; const val PALETTE = 6; const val MIC = 7; const val SUN = 8; const val CHECK = 9 }
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
     private val r = RectF()
     private val path = Path()
@@ -56,6 +56,23 @@ class IconView(ctx: Context, private val kind: Int, private var color: Int) : Vi
             PALETTE -> {
                 c.drawCircle(12f, 12f, 9f, p); fill()
                 c.drawCircle(8f, 11f, 1.5f, p); c.drawCircle(12f, 7.5f, 1.5f, p); c.drawCircle(16f, 11f, 1.5f, p); c.drawCircle(9.5f, 15.5f, 1.5f, p)
+            }
+            MIC -> {
+                r.set(9f, 3f, 15f, 14f); c.drawRoundRect(r, 3f, 3f, p)
+                r.set(6f, 8f, 18f, 19f); c.drawArc(r, 0f, 180f, false, p)
+                c.drawLine(12f, 19f, 12f, 21.5f, p)
+            }
+            SUN -> {
+                c.drawCircle(12f, 12f, 3.6f, p)
+                for (i in 0 until 8) {
+                    val a = Math.toRadians(i * 45.0); val cs = Math.cos(a).toFloat(); val sn = Math.sin(a).toFloat()
+                    c.drawLine(12f + cs * 7f, 12f + sn * 7f, 12f + cs * 9.6f, 12f + sn * 9.6f, p)
+                }
+            }
+            CHECK -> {
+                p.strokeWidth = 2.6f
+                path.moveTo(6f, 12.5f); path.lineTo(10.5f, 17f); path.lineTo(18f, 8f)
+                c.drawPath(path, p)
             }
         }
         c.restore()
