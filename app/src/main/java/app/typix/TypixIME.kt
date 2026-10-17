@@ -56,6 +56,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     override fun onCreate() {
         super.onCreate()
         ClipStore.start(this)
+        VoiceInput.restoreBeeps(this)
         // heavy loading off the UI thread: dictionaries + emoji glyph checks, so the first keystroke never waits
         Thread {
             Dict.load(this); EnDict.load(this)
@@ -528,9 +529,10 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         voice?.let { if (it.active) { it.setLanguage(voiceLang()); hint("Listening · ${voiceLabel()}") } }
     }
     private fun flush() { if (buf.isNotEmpty()) { currentInputConnection?.finishComposingText(); buf.setLength(0); updateStrip() } }
-    private fun commit(s: String) { flush(); enBuf.setLength(0); currentInputConnection?.commitText(s, 1); updateStrip() }
+    private fun commit(s: String) { stopVoice(); flush(); enBuf.setLength(0); currentInputConnection?.commitText(s, 1); updateStrip() }
 
     private fun pick(w: String) {
+        stopVoice()
         val ic = currentInputConnection ?: return
         ic.beginBatchEdit()
         ic.setComposingText(w, 1); ic.finishComposingText(); ic.commitText(" ", 1)
@@ -540,6 +542,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
 
     /** Replace the English word being typed with the chosen completion (only if the text before the cursor really is that word). */
     private fun pickEn(w: String) {
+        stopVoice()
         val ic = currentInputConnection ?: return
         val n = enBuf.length
         ic.beginBatchEdit()
@@ -586,6 +589,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     override fun onBackspace() {
+        stopVoice()
         val ic = currentInputConnection ?: return
         if (buf.isNotEmpty()) {
             buf.deleteCharAt(buf.length - 1)
@@ -607,7 +611,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     override fun onCursor(dir: Int) {
-        flush(); enBuf.setLength(0)
+        stopVoice(); flush(); enBuf.setLength(0)
         sendDownUpKeyEvents(if (dir < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
         updateStrip()
     }

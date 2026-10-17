@@ -4,6 +4,7 @@ android {
     compileSdk = 34
     defaultConfig {
         applicationId = "app.typix.keyboard"; minSdk = 24; targetSdk = 34
+        resourceConfigurations += listOf("en", "si")
         // every CI build gets a higher versionCode, so a newer APK always installs over an older one
         versionCode = 9 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0); versionName = "0.7.0"
     }

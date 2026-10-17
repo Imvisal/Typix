@@ -77,7 +77,7 @@ class EmojiGridView(ctx: Context, th: Theme, private val onPick: (String) -> Uni
                     val col = (e.x / (width / cols.toFloat())).toInt().coerceIn(0, cols - 1)
                     val row = ((scrollPos + e.y) / cellH).toInt()
                     val i = row * cols + col
-                    if (i in items.indices) { performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); onPick(items[i]) }
+                    if (i in items.indices) { if (Prefs.bool(context, "vibrate", false)) performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP); onPick(items[i]) }
                 } else {
                     tracker?.computeCurrentVelocity(1000, maxFling.toFloat())
                     val vy = tracker?.yVelocity ?: 0f
