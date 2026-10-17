@@ -165,7 +165,9 @@ class SettingsActivity : Activity() {
         if (!done) addView(pill(action, th.accent, th.onAccent, onClick))
     }
 
+    private var scroller: ScrollView? = null
     private fun show(t: Int) {
+        val keepY = if (t == tab) scroller?.scrollY ?: 0 else 0
         tab = t; val th = Prefs.theme(this)
         dark = when (Prefs.appMode(this)) { 1 -> false; 2 -> true; else -> (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES }
         window.statusBarColor = pageBg; window.navigationBarColor = pageBg
@@ -175,7 +177,10 @@ class SettingsActivity : Activity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(pageBg); fitsSystemWindows = true }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(14), dp(20), dp(24)) }
         when (t) { 0 -> home(col, th); 1 -> themes(col, th); else -> settings(col, th) }
-        root.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(col) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        val sv = ScrollView(this).apply { isVerticalScrollBarEnabled = false; isFillViewport = true; addView(col) }
+        scroller = sv
+        if (keepY > 0) sv.post { sv.scrollTo(0, keepY) }
+        root.addView(sv, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(View(this).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, dp(1)))
         val bar = LinearLayout(this).apply { setBackgroundColor(pageBg); setPadding(dp(8), dp(10), dp(8), dp(10)) }
         listOf(Triple("Home", IconView.HOME, 0), Triple("Themes", IconView.PALETTE, 1), Triple("Settings", IconView.TUNE, 2)).forEach { (n, k, i) ->
@@ -300,6 +305,49 @@ class SettingsActivity : Activity() {
         c.addView(bigButton(chosen, if (sel == th.name) "Theme applied" else "Apply theme") {
             Prefs.setTheme(this, chosen.name); pending = null; Toast.makeText(this, "${chosen.name} applied", Toast.LENGTH_SHORT).show(); show(1)
         }, lp(h = dp(56), top = 8))
+        customize(c, th)
+    }
+
+    /** Per-theme customising of the applied theme: button size, key colour, letter colour, number colour. */
+    private fun customize(c: LinearLayout, th: Theme) {
+        val n = th.name
+        c.addView(label("Customize · $n"))
+        val k = card(); k.setPadding(dp(16), dp(16), dp(16), dp(16))
+        val keyC = Prefs.ov(this, n, "key"); val textC = Prefs.ov(this, n, "text"); val numC = Prefs.ov(this, n, "num")
+        val size = Prefs.ov(this, n, "size", 100).coerceIn(70, 108)
+        k.addView(KeyPreviewView(this, th, if (keyC != 0) keyC else th.key, if (textC != 0) textC else th.text,
+            if (numC != 0) numC else mixColor(th.text, th.bg, 0.55f), size))
+        // button size stepper
+        k.addView(tv("Button size", 17f).apply { setPadding(dp(4), dp(18), 0, dp(10)) })
+        val step = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        fun stepBtn(t: String, delta: Int) = tv(t, 24f, 600, th.onAccent).apply {
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply { cornerRadius = dp(16).toFloat(); setColor(th.accent) }
+            setOnClickListener { Prefs.setOv(this@SettingsActivity, n, "size", (size + delta).coerceIn(70, 108)); show(1) }
+        }
+        step.addView(stepBtn("−", -4), LinearLayout.LayoutParams(dp(64), dp(48)))
+        step.addView(tv("$size%", 19f, 600).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, -2, 1f))
+        step.addView(stepBtn("+", 4), LinearLayout.LayoutParams(dp(64), dp(48)))
+        k.addView(step)
+        fun colors(title: String, f: String, cur: Int, shownDefault: Int) {
+            k.addView(tv(title, 17f).apply { setPadding(dp(4), dp(20), 0, dp(6)) })
+            Swatches.colors.toList().chunked(8).forEach { rowColors ->
+                val row = LinearLayout(this).apply { weightSum = 8f }
+                for (col in rowColors) row.addView(SwatchView(this, col, if (col == 0) shownDefault else col, col == cur, th.accent, if (dark) 0xFF4A5380.toInt() else 0xFFB8BED6.toInt()) {
+                    Prefs.setOv(this, n, f, col); show(1)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                k.addView(row)
+            }
+        }
+        colors("Key color", "key", keyC, th.key)
+        colors("Letter color", "text", textC, th.text)
+        colors("Number color", "num", numC, mixColor(th.text, th.bg, 0.55f))
+        k.addView(tv("Reset $n customizing", 16f, 600, accentText(th)).apply {
+            setPadding(0, dp(20), 0, dp(4))
+            setOnClickListener { Prefs.clearOv(this@SettingsActivity, n); show(1) }
+        })
+        c.addView(k)
+        c.addView(tv("These changes belong to the $n theme, so every theme can have its own look.", 13f, 400, soft).apply { setPadding(dp(4), dp(10), dp(4), dp(10)) })
     }
 
     private fun settings(c: LinearLayout, th: Theme) {

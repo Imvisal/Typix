@@ -52,6 +52,10 @@ object Prefs {
     private fun sp(c: Context) = c.getSharedPreferences("typix", Context.MODE_PRIVATE)
     fun theme(c: Context): Theme { val n = sp(c).getString("theme", "Ink"); return themes.firstOrNull { it.name == n } ?: themes[0] }
     fun setTheme(c: Context, n: String) = sp(c).edit().putString("theme", n).apply()
+    // per-theme keyboard customising: field = key (key colour), text (letter colour), num (number colour), size (percent)
+    fun ov(c: Context, theme: String, f: String, def: Int = 0) = sp(c).getInt("ov.$theme.$f", def)
+    fun setOv(c: Context, theme: String, f: String, v: Int) = sp(c).edit().putInt("ov.$theme.$f", v).apply()
+    fun clearOv(c: Context, theme: String) = sp(c).edit().apply { for (f in listOf("key", "text", "num", "size")) remove("ov.$theme.$f") }.apply()
     fun int(c: Context, k: String, def: Int) = sp(c).getInt(k, def)
     fun setInt(c: Context, k: String, v: Int) = sp(c).edit().putInt(k, v).apply()
     fun bool(c: Context, k: String, def: Boolean) = sp(c).getBoolean(k, def)

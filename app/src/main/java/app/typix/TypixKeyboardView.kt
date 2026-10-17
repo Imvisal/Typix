@@ -36,7 +36,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private var shift = false; private var caps = false; private var symbols = false; private var page2 = false
     private var lastShiftTap = 0L
 
-    private class Key(val label: String, val upper: String, val code: Int, val x: Float, val w: Float, val row: Int, val r: RectF = RectF())
+    private class Key(val label: String, val upper: String, val code: Int, val x: Float, val w: Float, val row: Int, val r: RectF = RectF(), val cell: RectF = RectF())
     private var keys: Array<Key> = emptyArray()
     private val d = ctx.resources.displayMetrics.density
     private val bg = Paint()
@@ -117,21 +117,32 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private fun layoutKeys() {
         if (width == 0) return
         val u = width / 10f; val rh = rowDp * d; val padX = gap * 2.5f * d; val padY = gap * 3.5f * d; val top = 4 * d
-        for (k in keys) k.r.set(k.x * u + padX, top + k.row * rh + padY, (k.x + k.w) * u - padX, top + (k.row + 1) * rh - padY)
+        val s = sizePct / 100f
+        for (k in keys) {
+            k.cell.set(k.x * u, top + k.row * rh, (k.x + k.w) * u, top + (k.row + 1) * rh)     // full touch cell: no dead gaps between keys
+            k.r.set(k.x * u + padX, top + k.row * rh + padY, (k.x + k.w) * u - padX, top + (k.row + 1) * rh - padY)
+            if (s != 1f) { val cx = k.r.centerX(); val cy = k.r.centerY(); val hw = k.r.width() / 2 * s; val hh = k.r.height() / 2 * s; k.r.set(cx - hw, cy - hh, cx + hw, cy + hh) }
+        }
     }
 
     private var gap = 1f
+    private var sizePct = 100; private var numColor = 0
     private var rad = 12f * 3f
 
     fun applySettings() {
         val t = Prefs.theme(context)
-        bg.color = t.bg; accentP.color = t.accent; accent = t.accent; textColor = t.text; onAccent = t.onAccent
-        fillP.color = t.key
-        specialP.color = if (lumaOf(t.bg) < 128) mixColor(t.key, t.bg, 0.25f) else mixColor(t.key, t.bg, 0.55f)
-        litP.color = mixColor(t.key, t.text, if (lumaOf(t.bg) < 128) 0.16f else 0.10f)
-        strokeP.color = mixColor(t.key, t.text, 0.22f)
-        dimColor = mixColor(t.text, t.bg, 0.45f)
-        hintBase = mixColor(t.text, t.bg, 0.55f); hintP.color = hintBase
+        // per-theme customising: key colour, letter colour, number colour, button size
+        val keyC = Prefs.ov(context, t.name, "key").let { if (it != 0) it else t.key }
+        val textC = Prefs.ov(context, t.name, "text").let { if (it != 0) it else t.text }
+        numColor = Prefs.ov(context, t.name, "num")
+        sizePct = Prefs.ov(context, t.name, "size", 100).coerceIn(70, 108)
+        bg.color = t.bg; accentP.color = t.accent; accent = t.accent; textColor = textC; onAccent = t.onAccent
+        fillP.color = keyC
+        specialP.color = if (lumaOf(t.bg) < 128) mixColor(keyC, t.bg, 0.25f) else mixColor(keyC, t.bg, 0.55f)
+        litP.color = mixColor(keyC, textC, if (lumaOf(t.bg) < 128) 0.16f else 0.10f)
+        strokeP.color = mixColor(keyC, textC, 0.22f)
+        dimColor = mixColor(textC, t.bg, 0.45f)
+        hintBase = mixColor(textC, t.bg, 0.55f); hintP.color = hintBase
         rowDp = Prefs.rowDp(context).toFloat(); requestLayout()
         hints = Prefs.bool(context, "hints", true); soundStyle = Prefs.int(context, "soundstyle", 0).coerceIn(0, 2)
         vibrate = Prefs.bool(context, "vibrate", false); vibStrength = Prefs.int(context, "vibstr", 1).coerceIn(0, 2); borders = Prefs.bool(context, "borders", false)
@@ -198,14 +209,14 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
                 -6, -8 -> { small.color = textColor; c.drawText(k.label, cx, cy + 5.5f * d, small) }
                 else -> {
                     val isLetter = k.code in 97..122
-                    big.color = textColor
+                    big.color = if (numColor != 0 && k.code in 48..57) numColor else textColor
                     c.drawText(if (isLetter && upper) k.upper else k.label, cx, cy + 7.5f * d, big)
-                    var hint: String? = null
+                    var hint: String? = null; var digitHint = false
                     if (isLetter) {
                         if (hints && sinhala) hint = if (upper) shiftTab[k.code] else hintTab[k.code]
-                        else if (k.row == 0 && !symbols) hint = digitTab[k.x.toInt()]
+                        else if (k.row == 0 && !symbols) { hint = digitTab[k.x.toInt()]; digitHint = true }
                     }
-                    if (hint != null) { hintP.color = if (upper) accent else hintBase; c.drawText(hint, k.r.right - 5 * d, k.r.top + 12.5f * d, hintP) }
+                    if (hint != null) { hintP.color = if (digitHint && numColor != 0) numColor else if (upper) accent else hintBase; c.drawText(hint, k.r.right - 5 * d, k.r.top + 12.5f * d, hintP) }
                 }
             }
         }
@@ -253,11 +264,13 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     // ---------- touch ----------
     private fun hit(x: Float, y: Float): Key? {
-        for (k in keys) if (k.r.contains(x, y)) return k
+        for (k in keys) if (k.cell.contains(x, y)) return k          // touch cells tile the keyboard, so small / shrunk keys still catch every tap
         var best: Key? = null; var bd = Float.MAX_VALUE
-        for (k in keys) {                                   // forgive taps that land in the gaps between keys
-            if (x < k.r.left - 4 * d || x > k.r.right + 4 * d || y < k.r.top - 5 * d || y > k.r.bottom + 5 * d) continue
-            val dx = x - k.r.centerX(); val dy = y - k.r.centerY(); val dd = dx * dx + dy * dy
+        for (k in keys) {                                   // edges (e.g. left of "a", right of "l") and a little above / below: nearest key
+            val dx = if (x < k.cell.left) k.cell.left - x else if (x > k.cell.right) x - k.cell.right else 0f
+            val dy = if (y < k.cell.top) k.cell.top - y else if (y > k.cell.bottom) y - k.cell.bottom else 0f
+            if (dx > 20 * d || dy > 10 * d) continue
+            val dd = dx * dx + dy * dy
             if (dd < bd) { bd = dd; best = k }
         }
         return best
