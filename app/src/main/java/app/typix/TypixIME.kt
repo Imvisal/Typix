@@ -151,7 +151,22 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         root.addView(body, LinearLayout.LayoutParams(-1, bodyH()))
         keys = TypixKeyboardView(this, this).also { it.sinhala = sinhala; it.enterKind = enterKind() }
         showKeys(); refreshTabs(); refreshEmojiRow(); updateStrip(); rootView = root; applyNav(); applyHand()
+        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { clearBehind(v) }
+            override fun onViewDetachedFromWindow(v: View) {}
+        })
         return root
+    }
+
+    /** Make every view behind the rounded keyboard transparent, so no white shows in the two top corners. */
+    private fun clearBehind(v: View) {
+        var p = v.parent
+        while (p is View) { p.setBackgroundColor(android.graphics.Color.TRANSPARENT); p = p.parent }
+        window?.window?.let {
+            it.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            it.decorView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            it.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
     }
 
     private fun enterKind() = when (imeAction) {
@@ -488,6 +503,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         super.onStartInputView(info, restarting)
         if (::th.isInitialized && Prefs.theme(this).name != th.name) { setInputView(onCreateInputView()); return }
         if (::th.isInitialized) applyNav()
+        rootView?.let { clearBehind(it) }
         loadPrefs(); applyHand()
         if (::body.isInitialized) {
             showKeys(); keys?.applySettings(); keys?.sinhala = sinhala; keys?.enterKind = enterKind()
