@@ -160,8 +160,8 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
 
     /** Make every view behind the rounded keyboard transparent, so no white shows in the two top corners. */
     private fun clearBehind(v: View) {
-        var p = v.parent
-        while (p is View) { p.setBackgroundColor(android.graphics.Color.TRANSPARENT); p = p.parent }
+        var p: android.view.ViewParent? = v.parent
+        while (p != null) { (p as? View)?.setBackgroundColor(android.graphics.Color.TRANSPARENT); p = p.parent }
         window?.window?.let {
             it.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             it.decorView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
