@@ -13,7 +13,7 @@ v0.4: redesigned to match the Typix design: Ink default theme (#0E1224 / #1B2140
 v0.3: equal-size toolbar buttons on one row, bordered keys (toggle in Settings), nav bar painted like the keyboard, app dark mode (Auto / Light / Dark).
 Singlish engine (+tests), suggestions + auto-correct, flat canvas keyboard (shift, ?123, long-press digits, globe = switch language, key hints, 4 heights), always-visible icon toolbar, full emoji (9 categories + flags, auto-filtered to what your phone can draw) / clipboard / text editor panels, 7 themes with previews, adaptive app icon, app (Home / Themes / Settings).
 ## TODO
-Built-in voice typing (the mic hands over to the phone's voice keyboard for now), multi-touch fast typing, bigger word list.
+Multi-touch fast typing, bigger word list.
 
 ## Preview
 Rendered preview of the UI (keyboard + app, light and dark): `docs/ui-preview.png` (also `docs/home.png`, `docs/home-dark.png`, `docs/keyboard.png`, `docs/themes.png`). It is a mock render of the design, not a device screenshot.
@@ -22,3 +22,5 @@ Rendered preview of the UI (keyboard + app, light and dark): `docs/ui-preview.pn
 Design reference renders: `docs/design-*.png`. Fonts: Outfit (SIL OFL) in `app/src/main/assets/fonts/`.
 
 English word list: google-10000-english (MIT, from the Google Trillion Word Corpus), `app/src/main/assets/en_words.txt`.
+
+v0.7 (in progress): built-in voice typing. Tap the mic to dictate in Sinhala or English (follows the En / සිං tab) with live text, continuous listening and auto-capitalisation; tap again to stop. Long-press the mic to use the phone's own voice keyboard instead. Uses the phone's speech recogniser, so voice typing may need an internet connection.

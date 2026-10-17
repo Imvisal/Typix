@@ -62,7 +62,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             Emojis.smileys; Emojis.people; Emojis.animals; Emojis.food; Emojis.activities; Emojis.travel; Emojis.objects; Emojis.symbols; Emojis.flags
         }.apply { priority = Thread.MIN_PRIORITY; start() }
     }
-    override fun onDestroy() { ClipStore.stop(); super.onDestroy() }
+    override fun onDestroy() { voice?.destroy(); ClipStore.stop(); super.onDestroy() }
     override fun onEvaluateFullscreenMode() = false
 
     // ---------- views ----------
@@ -104,18 +104,24 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         tabSi = TabView(this, "සිං", 17f) { setLang(true) }
         bar.addView(tabEn, LinearLayout.LayoutParams(dp(52), dp(40)).apply { setMargins(dp(2), 0, dp(2), 0) })
         bar.addView(tabSi, LinearLayout.LayoutParams(dp(58), dp(40)).apply { setMargins(dp(2), 0, dp(2), 0) })
-        fun tool(kind: Int, panelId: Int, action: () -> Unit) {
+        fun tool(kind: Int, panelId: Int, onLong: (() -> Unit)? = null, action: () -> Unit) {
             val iv = IconView(this, kind, th.text)
             val fl = FrameLayout(this).apply {
                 addView(iv, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
                 setOnClickListener { action() }
+                if (onLong != null) setOnLongClickListener { onLong(); true }
             }
             iconPanels.add(iv to panelId); iconBoxes.add(fl)
+            if (kind == IconView.MIC) { micIv = iv; micBox = fl }
             bar.addView(fl, LinearLayout.LayoutParams(dp(42), dp(40)))
         }
         tool(IconView.EMOJI, 1) { togglePanel(1) }
-        tool(IconView.MIC, 0) { startVoice() }
-        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        tool(IconView.MIC, 0, onLong = { startVoiceKeyboard() }) { toggleVoice() }
+        voiceHint = TextView(this).apply {
+            textSize = 13f; maxLines = 1; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), 0, dp(8), 0)
+            ellipsize = android.text.TextUtils.TruncateAt.END; typeface = Fonts.get(this@TypixIME, 500); setTextColor(th.accent)
+        }
+        bar.addView(voiceHint, LinearLayout.LayoutParams(0, -1, 1f))
         tool(IconView.TUNE, 0) { openApp() }
         topBar = bar
 
@@ -152,9 +158,84 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> 3; EditorInfo.IME_ACTION_DONE -> 4; else -> 0
     }
 
-    /** Hand over to the voice-typing keyboard (e.g. Google voice typing) if one is enabled. */
-    private fun startVoice() {
-        flush()
+    // ---------- voice typing ----------
+    private var voice: VoiceInput? = null
+    private var voiceOn = false
+    private var micIv: IconView? = null
+    private var micBox: FrameLayout? = null
+    private var voiceHint: TextView? = null
+    private var hasPartial = false
+    private val hintHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun voiceLang() = if (sinhala) "si-LK" else "en-US"
+    private fun voiceLabel() = if (sinhala) "සිංහල" else "English"
+
+    private fun micAllowed() = android.os.Build.VERSION.SDK_INT < 23 ||
+        checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    private fun hint(t: String, ms: Long = 0) {
+        voiceHint?.text = t
+        hintHandler.removeCallbacksAndMessages(null)
+        if (ms > 0) hintHandler.postDelayed({ if (!voiceOn) voiceHint?.text = "" }, ms)
+    }
+
+    private val voiceCb = object : VoiceInput.Callback {
+        override fun onPartial(text: String) {
+            val ic = currentInputConnection ?: return
+            if (text.isEmpty()) { if (hasPartial) { ic.setComposingText("", 1); ic.finishComposingText() }; hasPartial = false; return }
+            ic.setComposingText(voiceText(text, !hasPartial), 1); hasPartial = true
+        }
+        override fun onFinal(text: String) {
+            val ic = currentInputConnection ?: return
+            ic.beginBatchEdit()
+            ic.setComposingText(voiceText(text, !hasPartial), 1); ic.finishComposingText(); ic.commitText(" ", 1)
+            ic.endBatchEdit()
+            hasPartial = false; enBuf.setLength(0); lastSpaceAt = 0; updateStrip()
+        }
+        override fun onListening(on: Boolean) {
+            voiceOn = on
+            if (on) { hint("Listening · ${voiceLabel()}") } else { micIv?.scaleX = 1f; micIv?.scaleY = 1f; hint("") }
+            refreshIcons()
+        }
+        override fun onLevel(level: Float) { micIv?.let { val s = 1f + 0.35f * level; it.scaleX = s; it.scaleY = s } }
+        override fun onMessage(msg: String, fatal: Boolean) {
+            hint(msg, 3500)
+            if (fatal) Toast.makeText(this@TypixIME, msg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Spoken text -> what gets typed: capital letter at sentence start (English) and a space if we are glued to a previous word. */
+    private fun voiceText(t: String, first: Boolean): String {
+        var s = t
+        if (!first) return s
+        val ic = currentInputConnection ?: return s
+        val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+        if (!sinhala && prefAutoCap && ic.getCursorCapsMode(inputType) != 0 && s.isNotEmpty()) s = s.substring(0, 1).uppercase() + s.substring(1)
+        if (before.isNotEmpty() && !before[0].isWhitespace() && before[0] !in "([{\"'") s = " $s"
+        return s
+    }
+
+    /** Mic tap: start / stop built-in voice typing (asks for the microphone the first time). */
+    private fun toggleVoice() {
+        val v = voice
+        if (v != null && v.active) { v.stop(); return }
+        flush(); enBuf.setLength(0); updateStrip()
+        if (secure) { Toast.makeText(this, "Voice typing is off for password fields", Toast.LENGTH_SHORT).show(); return }
+        if (!micAllowed()) {
+            startActivity(Intent(this, MicPermissionActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
+        val vi = v ?: VoiceInput(this, voiceCb).also { voice = it }
+        if (!vi.available()) { startVoiceKeyboard(); return }     // no recogniser on the phone: use its voice keyboard instead
+        if (panel != 0) showKeys()
+        vi.start(voiceLang())
+    }
+
+    private fun stopVoice() { voice?.let { if (it.active) it.stop() } }
+
+    /** Long-press on the mic: hand over to the phone's own voice-typing keyboard (e.g. Google voice typing) if one is enabled. */
+    private fun startVoiceKeyboard() {
+        stopVoice(); flush()
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         if (android.os.Build.VERSION.SDK_INT >= 28) {
             for (info in imm.enabledInputMethodList) for (st in imm.getEnabledInputMethodSubtypeList(info, true)) {
@@ -187,6 +268,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             v.tint(if (on) th.accent else dim)
             iconBoxes[i].background = if (on) GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(th.key) } else null
         }
+        if (voiceOn) micIv?.let { it.tint(th.accent); micBox?.background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(th.key) } }
     }
 
     private fun refreshTabs() { tabEn.setActive(!sinhala, th); tabSi.setActive(sinhala, th) }
@@ -386,6 +468,8 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     // ---------- input ----------
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
+        if (!restarting) stopVoice()
+        hasPartial = false
         buf.setLength(0); enBuf.setLength(0); selecting = false
         val t = info?.inputType ?: 0
         inputType = t
@@ -409,7 +493,8 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         }
     }
 
-    override fun onFinishInput() { buf.setLength(0); enBuf.setLength(0); super.onFinishInput() }
+    override fun onFinishInputView(finishingInput: Boolean) { stopVoice(); super.onFinishInputView(finishingInput) }
+    override fun onFinishInput() { stopVoice(); buf.setLength(0); enBuf.setLength(0); super.onFinishInput() }
 
     /** English: start of sentence / field asks for capitals -> one-shot Shift, like a normal keyboard. */
     private fun autoShift() {
@@ -422,6 +507,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private fun setLang(s: Boolean) {
         flush(); enBuf.setLength(0); sinhala = s; keys?.sinhala = s
         refreshTabs(); updateStrip(); autoShift()
+        voice?.let { if (it.active) { it.setLanguage(voiceLang()); hint("Listening · ${voiceLabel()}") } }
     }
     private fun flush() { if (buf.isNotEmpty()) { currentInputConnection?.finishComposingText(); buf.setLength(0); updateStrip() } }
     private fun commit(s: String) { flush(); enBuf.setLength(0); currentInputConnection?.commitText(s, 1); updateStrip() }
@@ -447,6 +533,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     override fun onKey(c: Char) {
+        stopVoice()
         val ic = currentInputConnection ?: return
         if (sinhala && !secure && c.isLetter()) {
             buf.append(c); ic.setComposingText(Transliterator.transliterate(buf.toString()), 1); updateStrip(); return
@@ -459,6 +546,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     override fun onSpace() {
+        stopVoice()
         val ic = currentInputConnection ?: return
         ic.beginBatchEdit()
         if (buf.isNotEmpty()) {
@@ -493,7 +581,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     }
 
     override fun onEnter() {
-        flush(); enBuf.setLength(0)
+        stopVoice(); flush(); enBuf.setLength(0)
         val ic = currentInputConnection ?: return
         if (imeAction != 0 && imeAction != EditorInfo.IME_ACTION_NONE && imeAction != EditorInfo.IME_ACTION_UNSPECIFIED) ic.performEditorAction(imeAction)
         else sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
