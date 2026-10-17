@@ -252,7 +252,7 @@ class SettingsActivity : Activity() {
         fun row(k: String, title: String, def: Boolean, last: Boolean = false) {
             switchRow(q, th, k, title, null, def); if (!last) q.addView(divider())
         }
-        row("hints", "Sinhala key hints", true); row("autocorrect", "Auto-correct Singlish", true); row("sound", "Key sound", false, true)
+        row("hints", "Sinhala key hints", true); row("autocorrect", "Auto-correct Singlish", true, true)
         c.addView(q)
 
         c.addView(label("How to type"))
@@ -330,8 +330,12 @@ class SettingsActivity : Activity() {
         c.addView(k)
         c.addView(label("Feedback"))
         k = card()
-        switchRow(k, th, "sound", "Key sound", null, false); k.addView(divider())
-        switchRow(k, th, "vibrate", "Vibrate on key press", null, true)
+        switchRow(k, th, "vibrate", "Vibrate on key press", null, false)
+        c.addView(k)
+        c.addView(label("Key sound"))
+        k = card(); k.setPadding(dp(16), dp(14), dp(16), dp(14))
+        k.addView(seg(th, listOf("Off", "Click", "Keypress"), Prefs.int(this, "soundstyle", 0)) { Prefs.setInt(this, "soundstyle", it); show(2) })
+        k.addView(tv("Uses the phone's own key sounds, so \"Touch sounds\" must be on in the phone's sound settings.", 13f, 400, soft).apply { setPadding(0, dp(10), 0, 0) })
         c.addView(k)
         c.addView(label("Key style"))
         k = card(); k.setPadding(dp(16), dp(14), dp(16), dp(14))

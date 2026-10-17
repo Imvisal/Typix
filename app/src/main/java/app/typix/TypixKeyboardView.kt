@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
+import android.media.AudioManager
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -27,7 +28,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     /** 0 = return arrow, 1 = search, 2 = send, 3 = go / next, 4 = done */
     var enterKind = 0
         set(v) { if (field != v) { field = v; invalidate() } }
-    private var hints = true; private var sound = false; private var vibrate = true; private var borders = false; private var swipeCursor = true
+    private var hints = true; private var soundStyle = 0; private var vibrate = false; private var borders = false; private var swipeCursor = true
     private var shift = false; private var caps = false; private var symbols = false; private var page2 = false
     private var lastShiftTap = 0L
 
@@ -127,8 +128,8 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         dimColor = mixColor(t.text, t.bg, 0.45f)
         hintBase = mixColor(t.text, t.bg, 0.55f); hintP.color = hintBase
         rowDp = Prefs.rowDp(context).toFloat(); requestLayout()
-        hints = Prefs.bool(context, "hints", true); sound = Prefs.bool(context, "sound", false)
-        vibrate = Prefs.bool(context, "vibrate", true); borders = Prefs.bool(context, "borders", false)
+        hints = Prefs.bool(context, "hints", true); soundStyle = Prefs.int(context, "soundstyle", 0).coerceIn(0, 2)
+        vibrate = Prefs.bool(context, "vibrate", false); borders = Prefs.bool(context, "borders", false)
         swipeCursor = Prefs.bool(context, "swipecursor", true)
         gap = floatArrayOf(0.6f, 1f, 1.5f)[Prefs.int(context, "keygap", 1).coerceIn(0, 2)]
         rad = floatArrayOf(12f, 5f, 22f)[Prefs.int(context, "keyshape", 0).coerceIn(0, 2)] * d
@@ -259,9 +260,17 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     private fun repaint(k: Key) { k.r.roundOut(dirty); dirty.inset(-2, -2); invalidate(dirty) }
 
-    private fun feedback() {
+    private val audio by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+
+    /** Vibration and key sound (system sounds only; they follow the phone's "touch sounds" setting). */
+    private fun feedback(code: Int = 0) {
         if (vibrate) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        if (sound) playSoundEffect(SoundEffectConstants.CLICK)
+        when (soundStyle) {
+            1 -> audio.playSoundEffect(AudioManager.FX_KEY_CLICK)
+            2 -> audio.playSoundEffect(when (code) {
+                -1 -> AudioManager.FX_KEYPRESS_SPACEBAR; -2 -> AudioManager.FX_KEYPRESS_DELETE
+                -3 -> AudioManager.FX_KEYPRESS_RETURN; else -> AudioManager.FX_KEYPRESS_STANDARD })
+        }
     }
 
     /** Run the action of a key (called on finger-up, or earlier when a second finger lands). */
@@ -288,7 +297,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
 
     private fun press(id: Int, k: Key, x: Float, single: Boolean) {
         pk[id] = k; fired[id] = false; startX[id] = x
-        feedback(); repaint(k)
+        feedback(k.code); repaint(k)
         when {
             k.code == -2 -> { fired[id] = true; l.onBackspace(); postDelayed(rep, 400) }
             k.code == -1 && swipeCursor -> { spaceId = id; spaceAcc = 0f }
