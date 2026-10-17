@@ -1,2 +1,0 @@
-app.typix.keyboard:xml/method = 0x7f020000
-app.typix.keyboard:string/app_name = 0x7f010000
