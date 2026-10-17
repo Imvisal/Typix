@@ -165,6 +165,31 @@ class SettingsActivity : Activity() {
         if (!done) addView(pill(action, th.accent, th.onAccent, onClick))
     }
 
+    private fun saveSettings() = startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+        .setType("application/json").putExtra(Intent.EXTRA_TITLE, "typix-settings.json"), 41)
+    private fun loadSettings() = startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), 42)
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+        try {
+            if (requestCode == 41) {
+                contentResolver.openOutputStream(uri)?.use { it.write(Prefs.exportJson(this).toByteArray(Charsets.UTF_8)) }
+                Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+            } else if (requestCode == 42) {
+                val out = java.io.ByteArrayOutputStream(); val buf = ByteArray(8192)
+                contentResolver.openInputStream(uri)?.use { s ->
+                    while (true) { val n = s.read(buf); if (n < 0) break; out.write(buf, 0, n); if (out.size() > 262144) throw java.io.IOException("too big") }
+                }
+                val n = Prefs.importJson(this, out.toString("UTF-8"))
+                Toast.makeText(this, if (n > 0) "Settings restored" else "That isn't a Typix settings file", Toast.LENGTH_SHORT).show()
+                show(tab)
+            }
+        } catch (e: Exception) { Toast.makeText(this, "Couldn't read or write that file", Toast.LENGTH_SHORT).show() }
+    }
+
     private var scroller: ScrollView? = null
     private fun show(t: Int) {
         val keepY = if (t == tab) scroller?.scrollY ?: 0 else 0
@@ -415,6 +440,13 @@ class SettingsActivity : Activity() {
             setOnClickListener { Prefs.setPins(this@SettingsActivity, emptyList()); ClipStore.clearRecent(); Toast.makeText(this@SettingsActivity, "Cleared", Toast.LENGTH_SHORT).show() }
         })
         c.addView(k)
+        c.addView(label("Backup & restore"))
+        k = card()
+        k.addView(tv("Save settings to a file", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener { saveSettings() } })
+        k.addView(divider())
+        k.addView(tv("Restore settings from a file", 16f, 600, accentText(th)).apply { setPadding(0, dp(16), 0, dp(16)); setOnClickListener { loadSettings() } })
+        c.addView(k)
+        c.addView(tv("Themes, colors and all your settings. Choose Google Drive when the phone asks where to save, and you can restore them on any phone. Android also backs these up to your Google account automatically when phone backup is on.", 13f, 400, soft).apply { setPadding(dp(4), dp(10), dp(4), dp(4)) })
         c.addView(label("Reset"))
         k = card()
         k.addView(tv("Reset keyboard style", 16f, 600, accentText(th)).apply {

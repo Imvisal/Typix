@@ -60,8 +60,36 @@ object Prefs {
     fun setInt(c: Context, k: String, v: Int) = sp(c).edit().putInt(k, v).apply()
     fun bool(c: Context, k: String, def: Boolean) = sp(c).getBoolean(k, def)
     fun setBool(c: Context, k: String, v: Boolean) = sp(c).edit().putBoolean(k, v).apply()
-    fun pins(c: Context): List<String> = (sp(c).getString("pins", "") ?: "").split(SEP).filter { it.isNotEmpty() }
-    fun setPins(c: Context, l: List<String>) = sp(c).edit().putString("pins", l.joinToString(SEP)).apply()
+    // Pinned clips can hold private text, so they live in their own file that is never backed up or exported.
+    private fun pv(c: Context) = c.getSharedPreferences("typix_private", Context.MODE_PRIVATE)
+    fun pins(c: Context): List<String> {
+        val old = sp(c).getString("pins", null)
+        if (old != null) { pv(c).edit().putString("pins", old).apply(); sp(c).edit().remove("pins").apply() }   // one-time move
+        return (pv(c).getString("pins", "") ?: "").split(SEP).filter { it.isNotEmpty() }
+    }
+    fun setPins(c: Context, l: List<String>) = pv(c).edit().putString("pins", l.joinToString(SEP)).apply()
+
+    /** All keyboard settings (theme, customizing, sounds, ...) as JSON text, for "Save settings to a file". */
+    fun exportJson(c: Context): String {
+        val o = org.json.JSONObject()
+        for ((k, v) in sp(c).all) if (k != "pins" && (v is Int || v is Boolean || v is String)) o.put(k, v)
+        return org.json.JSONObject().put("typix", 1).put("settings", o).toString(2)
+    }
+    /** Restore settings from [exportJson] text. Returns how many were restored (0 = not a Typix file). */
+    fun importJson(c: Context, text: String): Int {
+        val o = try { org.json.JSONObject(text).optJSONObject("settings") } catch (e: Exception) { null } ?: return 0
+        val ed = sp(c).edit(); var n = 0
+        val it = o.keys()
+        while (it.hasNext()) {
+            val k = it.next(); if (k == "pins" || k.length > 64) continue
+            when (val v = o.get(k)) {
+                is Boolean -> { ed.putBoolean(k, v); n++ }
+                is Int -> { ed.putInt(k, v); n++ }
+                is String -> if (v.length < 5000) { ed.putString(k, v); n++ }
+            }
+        }
+        ed.apply(); return n
+    }
     fun recent(c: Context): List<String> = (sp(c).getString("recent_emoji", "") ?: "").split(' ').filter { it.isNotEmpty() }
     fun addRecent(c: Context, e: String) {
         val l = (listOf(e) + recent(c).filter { it != e }).take(30)

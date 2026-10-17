@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Google backup: only the keyboard settings (theme, colors, sounds ...). Pinned clips are in a separate file and are NOT backed up. -->
+<full-backup-content>
+    <include domain="sharedpref" path="typix.xml"/>
+</full-backup-content>
