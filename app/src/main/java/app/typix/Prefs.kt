@@ -52,6 +52,8 @@ object Prefs {
     private fun sp(c: Context) = c.getSharedPreferences("typix", Context.MODE_PRIVATE)
     fun theme(c: Context): Theme { val n = sp(c).getString("theme", "Ink"); return themes.firstOrNull { it.name == n } ?: themes[0] }
     fun setTheme(c: Context, n: String) = sp(c).edit().putString("theme", n).apply()
+    fun int(c: Context, k: String, def: Int) = sp(c).getInt(k, def)
+    fun setInt(c: Context, k: String, v: Int) = sp(c).edit().putInt(k, v).apply()
     fun bool(c: Context, k: String, def: Boolean) = sp(c).getBoolean(k, def)
     fun setBool(c: Context, k: String, v: Boolean) = sp(c).edit().putBoolean(k, v).apply()
     fun pins(c: Context): List<String> = (sp(c).getString("pins", "") ?: "").split(SEP).filter { it.isNotEmpty() }

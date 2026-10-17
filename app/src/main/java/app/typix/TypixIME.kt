@@ -18,21 +18,41 @@ import android.widget.*
 class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private var sinhala = true
     private var secure = false
-    private var menuOpen = false
     private var selecting = false
-    private val buf = StringBuilder()
+    private val buf = StringBuilder()      // Singlish being composed
+    private val enBuf = StringBuilder()    // English word being typed (for completions)
     private lateinit var th: Theme
     private var keys: TypixKeyboardView? = null
     private lateinit var body: FrameLayout
     private lateinit var strip: LinearLayout
+    private lateinit var emojiRow: LinearLayout
+    private val sug = arrayOfNulls<TextView>(3)
+    private val sugDiv = arrayOfNulls<View>(2)
+    private val emojiCells = ArrayList<TextView>()
+    private var suggestions: List<String> = emptyList()
+    private var stripMode = 0                // 0 = Singlish word, 1 = English word, 2 = starter words
     private lateinit var tabEn: TabView
     private lateinit var tabSi: TabView
+    private var prefEn = true; private var prefEmojiRow = true; private var prefAutoCap = true
+    private var prefDblSpace = true; private var prefAutocorrect = true
+    private var lastStartLang = -1
+    private var lastSpaceAt = 0L
+    private var inputType = 0
+    private var imeAction = 0
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private fun lpw(w: Float) = LinearLayout.LayoutParams(0, -1, w).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
     private fun lpv(w: Float) = LinearLayout.LayoutParams(-1, 0, w).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
 
-    override fun onCreate() { super.onCreate(); Dict.load(this); ClipStore.start(this) }
+    override fun onCreate() {
+        super.onCreate()
+        ClipStore.start(this)
+        // heavy loading off the UI thread: dictionaries + emoji glyph checks, so the first keystroke never waits
+        Thread {
+            Dict.load(this); EnDict.load(this)
+            Emojis.smileys; Emojis.people; Emojis.animals; Emojis.food; Emojis.activities; Emojis.travel; Emojis.objects; Emojis.symbols; Emojis.flags
+        }.apply { priority = Thread.MIN_PRIORITY; start() }
+    }
     override fun onDestroy() { ClipStore.stop(); super.onDestroy() }
     override fun onEvaluateFullscreenMode() = false
 
@@ -51,15 +71,23 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private val iconBoxes = ArrayList<FrameLayout>()
     private fun bodyH() = dp((4 * Prefs.rowDp(this) + 8).toInt())
 
+    private fun loadPrefs() {
+        prefEn = Prefs.bool(this, "ensugg", true); prefEmojiRow = Prefs.bool(this, "emojirow", true)
+        prefAutoCap = Prefs.bool(this, "autocap", true); prefDblSpace = Prefs.bool(this, "dblspace", true)
+        prefAutocorrect = Prefs.bool(this, "autocorrect", true)
+        val sl = Prefs.int(this, "startlang", 0)
+        if (sl != lastStartLang) { lastStartLang = sl; sinhala = sl == 0; keys?.sinhala = sinhala }
+    }
+
     override fun onCreateInputView(): View {
-        th = Prefs.theme(this)
+        th = Prefs.theme(this); loadPrefs()
         val r = dp(28).toFloat()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { setColor(th.bg); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
             setPadding(dp(4), dp(8), dp(4), dp(8))
         }
-        iconPanels.clear(); iconBoxes.clear()
+        iconPanels.clear(); iconBoxes.clear(); emojiCells.clear()
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         bar.addView(LogoView(this, th.accent).apply { setOnClickListener { togglePanel(4) } },
             LinearLayout.LayoutParams(dp(34), dp(34)).apply { setMargins(dp(8), 0, dp(8), 0) })
@@ -81,13 +109,35 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         tool(IconView.SUN, 0) { openApp() }
         root.addView(bar, LinearLayout.LayoutParams(-1, dp(44)))
+
+        // 3 suggestion slots with thin dividers (views are created once and only re-texted while typing)
         strip = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        root.addView(strip, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(dp(4), dp(2), dp(4), dp(2)) })
+        for (i in 0 until 3) {
+            val t = TextView(this).apply {
+                textSize = 19f; gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(th.text); typeface = Fonts.get(this@TypixIME, 500); setPadding(dp(6), 0, dp(6), 0)
+                setOnClickListener { onSuggestion(i) }
+            }
+            sug[i] = t; strip.addView(t, LinearLayout.LayoutParams(0, -1, 1f))
+            if (i < 2) { val dv = View(this).apply { setBackgroundColor(th.key) }; sugDiv[i] = dv; strip.addView(dv, LinearLayout.LayoutParams(dp(1), dp(22))) }
+        }
+        root.addView(strip, LinearLayout.LayoutParams(-1, dp(44)).apply { setMargins(dp(4), dp(2), dp(4), 0) })
+        emojiRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        for (i in 0 until 7) {
+            val t = TextView(this).apply { textSize = 22f; gravity = Gravity.CENTER; setOnClickListener { commit(text.toString()) } }
+            emojiCells.add(t); emojiRow.addView(t, LinearLayout.LayoutParams(0, -1, 1f))
+        }
+        root.addView(emojiRow, LinearLayout.LayoutParams(-1, dp(40)))
         body = FrameLayout(this)
         root.addView(body, LinearLayout.LayoutParams(-1, bodyH()))
-        keys = TypixKeyboardView(this, this).also { it.sinhala = sinhala }
-        showKeys(); refreshTabs(); updateStrip(); applyNav()
+        keys = TypixKeyboardView(this, this).also { it.sinhala = sinhala; it.enterKind = enterKind() }
+        showKeys(); refreshTabs(); refreshEmojiRow(); updateStrip(); applyNav()
         return root
+    }
+
+    private fun enterKind() = when (imeAction) {
+        EditorInfo.IME_ACTION_SEARCH -> 1; EditorInfo.IME_ACTION_SEND -> 2
+        EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> 3; EditorInfo.IME_ACTION_DONE -> 4; else -> 0
     }
 
     /** Hand over to the voice-typing keyboard (e.g. Google voice typing) if one is enabled. */
@@ -130,25 +180,50 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private fun refreshTabs() { tabEn.setActive(!sinhala, th); tabSi.setActive(sinhala, th) }
 
     private val quickEmoji = listOf("😂", "❤️", "😊", "🙏", "👍", "😍", "😭")
+    private val sinhalaStarters = listOf("මම", "ඔයා", "අපි")
+    private val englishStarters = listOf("I", "The", "And")
+
+    /** Re-text the 3 suggestion slots. Cheap: nothing is created or removed. */
     private fun updateStrip() {
-        strip.removeAllViews()
-        if (secure) return
-        if (sinhala && buf.isNotEmpty()) {
-            Dict.suggest(buf.toString()).forEachIndexed { i, w ->
-                val c = cell(w, 19f, th.text) { pick(w) }
-                c.typeface = Fonts.get(this, if (i == 0) 600 else 500)
-                if (i == 0) c.background = GradientDrawable().apply { cornerRadius = dp(14).toFloat(); setColor(th.key) }
-                strip.addView(c, LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(3), 0, dp(3), 0) })
-            }
-            return
+        if (!::strip.isInitialized) return
+        val list: List<String>
+        if (secure) { list = emptyList(); stripMode = 2 }
+        else if (sinhala && buf.isNotEmpty()) { list = Dict.suggest(buf.toString()); stripMode = 0 }
+        else if (!sinhala && enBuf.isNotEmpty() && prefEn) {
+            val typed = enBuf.toString()
+            val l = ArrayList<String>(EnDict.suggest(typed, 2))
+            if (l.none { it == typed }) l.add(typed)
+            list = l; stripMode = 1
+        } else { list = if (sinhala) sinhalaStarters else if (prefEn) englishStarters else emptyList(); stripMode = 2 }
+        suggestions = list
+        val typing = stripMode != 2
+        for (i in 0 until 3) {
+            val t = sug[i] ?: continue
+            val w = list.getOrNull(i) ?: ""
+            if (t.text.toString() != w) t.text = w
+            val tf = Fonts.get(this, if (i == 0 && typing) 600 else 500)
+            if (t.typeface !== tf) t.typeface = tf
         }
-        for (e in (Prefs.recent(this) + quickEmoji).distinct().take(7))
-            strip.addView(cell(e, 22f, th.text) { commit(e) }, LinearLayout.LayoutParams(0, -1, 1f))
+        for (i in 0 until 2) sugDiv[i]?.visibility = if (list.size > i + 1) View.VISIBLE else View.INVISIBLE
+    }
+
+    private fun onSuggestion(i: Int) {
+        val w = suggestions.getOrNull(i) ?: return
+        when (stripMode) { 0 -> pick(w); 1 -> pickEn(w); else -> commit("$w ") }
+    }
+
+    private fun refreshEmojiRow() {
+        if (emojiCells.isEmpty()) return
+        val l = (Prefs.recent(this) + quickEmoji).distinct().take(7)
+        for (i in 0 until 7) emojiCells[i].text = l.getOrNull(i) ?: ""
     }
 
     private fun setPanelMode(on: Boolean) {
+        val showEmojiRow = prefEmojiRow && !secure && !on
         strip.visibility = if (on) View.GONE else View.VISIBLE
-        body.layoutParams = LinearLayout.LayoutParams(-1, bodyH() + if (on) dp(52) else 0)
+        emojiRow.visibility = if (showEmojiRow) View.VISIBLE else View.GONE
+        val extra = if (on) dp(46) + (if (prefEmojiRow && !secure) dp(40) else 0) else 0
+        body.layoutParams = LinearLayout.LayoutParams(-1, bodyH() + extra)
     }
     private fun showKeys() { panel = 0; setPanelMode(false); body.removeAllViews(); keys?.let { body.addView(it) }; refreshIcons() }
     private fun panelBase() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPanelMode(true); body.removeAllViews(); body.addView(this, FrameLayout.LayoutParams(-1, -1)) }
@@ -168,64 +243,60 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         fun tile(kind: Int, name: String, act: () -> Unit) = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             background = GradientDrawable().apply { cornerRadius = dp(18).toFloat(); setColor(th.key) }
-            addView(IconView(this@TypixIME, kind, th.accent), LinearLayout.LayoutParams(dp(30), dp(30)))
-            addView(TextView(this@TypixIME).apply { text = name; textSize = 15f; setTextColor(th.text); typeface = Fonts.get(this@TypixIME, 500); setPadding(0, dp(8), 0, 0) })
+            addView(IconView(this@TypixIME, kind, th.accent), LinearLayout.LayoutParams(dp(32), dp(32)).apply { bottomMargin = dp(10) })
+            addView(TextView(this@TypixIME).apply { text = name; textSize = 15f; gravity = Gravity.CENTER; setTextColor(th.text); typeface = Fonts.get(this@TypixIME, 500) },
+                LinearLayout.LayoutParams(-1, -2))
             setOnClickListener { act() }
         }
-        val m = LinearLayout.LayoutParams(0, -1, 1f).apply { setMargins(dp(6), dp(10), dp(6), dp(10)) }
-        row.addView(tile(IconView.CLIP, "Clipboard") { showClip() }, m)
-        row.addView(tile(IconView.EDIT, "Text editor") { showEditor() }, LinearLayout.LayoutParams(m))
-        row.addView(tile(IconView.TUNE, "Settings") { openApp() }, LinearLayout.LayoutParams(m))
+        fun lp() = LinearLayout.LayoutParams(0, dp(120), 1f).apply { setMargins(dp(6), dp(10), dp(6), dp(10)) }
+        row.addView(tile(IconView.CLIP, "Clipboard") { showClip() }, lp())
+        row.addView(tile(IconView.EDIT, "Text editor") { showEditor() }, lp())
+        row.addView(tile(IconView.TUNE, "Settings") { openApp() }, lp())
         col.addView(row, LinearLayout.LayoutParams(-1, 0, 1f))
         col.addView(bottom(), LinearLayout.LayoutParams(-1, dp(44)))
     }
 
     private var emojiCat = -1
-    private class EmojiCat(val icon: String, val name: String, val list: () -> List<String>)
+    private class EmojiCat(val kind: Int, val name: String, val list: () -> List<String>)
 
     private fun showEmoji() {
         panel = 1; refreshIcons()
         val col = panelBase()
         val cats = listOf(
-            EmojiCat("🕘", "Recent") { Prefs.recent(this) }, EmojiCat("😀", "Smileys") { Emojis.smileys },
-            EmojiCat("👋", "People") { Emojis.people }, EmojiCat("🐱", "Animals") { Emojis.animals },
-            EmojiCat("🍔", "Food") { Emojis.food }, EmojiCat("⚽", "Activities") { Emojis.activities },
-            EmojiCat("🚗", "Travel") { Emojis.travel }, EmojiCat("💡", "Objects") { Emojis.objects },
-            EmojiCat("❤️", "Symbols") { Emojis.symbols }, EmojiCat("🏁", "Flags") { Emojis.flags }
+            EmojiCat(IconView.CLOCK, "Recent") { Prefs.recent(this) }, EmojiCat(IconView.EMOJI, "Smileys") { Emojis.smileys },
+            EmojiCat(IconView.PERSON, "People") { Emojis.people }, EmojiCat(IconView.FLOWER, "Animals") { Emojis.animals },
+            EmojiCat(IconView.CUP, "Food") { Emojis.food }, EmojiCat(IconView.BALL, "Activities") { Emojis.activities },
+            EmojiCat(IconView.CAR, "Travel") { Emojis.travel }, EmojiCat(IconView.BULB, "Objects") { Emojis.objects },
+            EmojiCat(IconView.HEART, "Symbols") { Emojis.symbols }, EmojiCat(IconView.FLAG, "Flags") { Emojis.flags }
         )
         if (emojiCat < 0) emojiCat = if (Prefs.recent(this).isNotEmpty()) 0 else 1
         val dim = mixColor(th.text, th.bg, 0.40f)
-        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        val grid = EmojiGridView(this, th) { e -> commit(e); Prefs.addRecent(this, e); refreshEmojiRow() }
         val title = TextView(this).apply { textSize = 13f; setTextColor(dim); typeface = Fonts.get(this@TypixIME, 500); setPadding(dp(12), dp(6), 0, dp(2)) }
-        val cw = (resources.displayMetrics.widthPixels - dp(8)) / 7
-        val tabViews = ArrayList<TabView>()
+        val icons = ArrayList<IconView>(); val boxes = ArrayList<FrameLayout>()
         fun select(i: Int) {
             emojiCat = i
-            tabViews.forEachIndexed { j, t -> t.setActive(j == i, th); t.alpha = if (j == i) 1f else 0.6f }
+            for (j in icons.indices) {
+                icons[j].tint(if (j == i) th.accent else dim)
+                boxes[j].background = if (j == i) GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(th.key) } else null
+            }
             title.text = cats[i].name.uppercase()
             val list = cats[i].list()
-            scroll.removeAllViews(); scroll.scrollTo(0, 0)
-            if (list.isEmpty()) {
-                scroll.addView(TextView(this).apply {
-                    text = "No recent emojis yet\nEmojis you use will show up here"; textSize = 14f; gravity = Gravity.CENTER
-                    setTextColor(dim); typeface = Fonts.get(this@TypixIME, 400); setPadding(dp(16), dp(40), dp(16), 0)
-                })
-            } else {
-                val g = GridLayout(this).apply { columnCount = 7 }
-                for (e in list) g.addView(cell(e, 25f, th.text) { commit(e); Prefs.addRecent(this@TypixIME, e) },
-                    GridLayout.LayoutParams().apply { width = cw; height = dp(46) })
-                scroll.addView(g)
-            }
+            grid.setItems(list, if (list.isEmpty()) "No recent emojis yet\nEmojis you use will show up here" else "")
         }
         val tabs = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        val back = FrameLayout(this).apply { addView(IconView(this@TypixIME, IconView.BACK, dim), FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER)); setOnClickListener { showKeys() } }
+        tabs.addView(back, LinearLayout.LayoutParams(0, dp(38), 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
         cats.forEachIndexed { i, c ->
-            val t = TabView(this, c.icon, 19f) { select(i) }
-            tabViews.add(t); tabs.addView(t, LinearLayout.LayoutParams(dp(50), dp(38)).apply { setMargins(dp(2), 0, dp(2), 0) })
+            val iv = IconView(this, c.kind, dim)
+            val fl = FrameLayout(this).apply { addView(iv, FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER)); setOnClickListener { select(i) } }
+            icons.add(iv); boxes.add(fl)
+            tabs.addView(fl, LinearLayout.LayoutParams(0, dp(38), 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
         }
-        col.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setPadding(dp(4), 0, dp(4), 0); addView(tabs) }, LinearLayout.LayoutParams(-1, dp(42)))
+        col.addView(tabs, LinearLayout.LayoutParams(-1, dp(42)).apply { setMargins(dp(4), 0, dp(4), 0) })
         col.addView(View(this).apply { setBackgroundColor(th.key) }, LinearLayout.LayoutParams(-1, dp(1)).apply { setMargins(dp(8), dp(3), dp(8), 0) })
         col.addView(title, LinearLayout.LayoutParams(-1, -2))
-        col.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        col.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f))
         col.addView(bottom("⌫" to { onBackspace() }), LinearLayout.LayoutParams(-1, dp(44)))
         select(emojiCat)
     }
@@ -293,46 +364,97 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     // ---------- input ----------
     override fun onStartInput(info: EditorInfo?, restarting: Boolean) {
         super.onStartInput(info, restarting)
-        buf.setLength(0); selecting = false
+        buf.setLength(0); enBuf.setLength(0); selecting = false
         val t = info?.inputType ?: 0
+        inputType = t
         val cls = t and InputType.TYPE_MASK_CLASS
         val v = t and InputType.TYPE_MASK_VARIATION
         secure = (cls == InputType.TYPE_CLASS_TEXT && (v == InputType.TYPE_TEXT_VARIATION_PASSWORD ||
                 v == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || v == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)) ||
                 (cls == InputType.TYPE_CLASS_NUMBER && v == InputType.TYPE_NUMBER_VARIATION_PASSWORD)
+        val io = info?.imeOptions ?: 0
+        imeAction = if (io and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) 0 else io and EditorInfo.IME_MASK_ACTION
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         if (::th.isInitialized && Prefs.theme(this).name != th.name) { setInputView(onCreateInputView()); return }
         if (::th.isInitialized) applyNav()
-        if (::body.isInitialized) { showKeys(); keys?.applySettings(); body.layoutParams = LinearLayout.LayoutParams(-1, bodyH()); body.requestLayout(); updateStrip() }
+        loadPrefs()
+        if (::body.isInitialized) {
+            showKeys(); keys?.applySettings(); keys?.sinhala = sinhala; keys?.enterKind = enterKind()
+            refreshTabs(); refreshEmojiRow(); updateStrip(); autoShift()
+        }
     }
 
-    override fun onFinishInput() { buf.setLength(0); super.onFinishInput() }
+    override fun onFinishInput() { buf.setLength(0); enBuf.setLength(0); super.onFinishInput() }
 
-    private fun setLang(s: Boolean) { flush(); sinhala = s; keys?.sinhala = s; keys?.invalidate(); refreshTabs(); updateStrip() }
+    /** English: start of sentence / field asks for capitals -> one-shot Shift, like a normal keyboard. */
+    private fun autoShift() {
+        val k = keys ?: return
+        if (sinhala || secure || !prefAutoCap) { k.setAutoShift(false); return }
+        val m = currentInputConnection?.getCursorCapsMode(inputType) ?: 0
+        k.setAutoShift(m != 0)
+    }
+
+    private fun setLang(s: Boolean) {
+        flush(); enBuf.setLength(0); sinhala = s; keys?.sinhala = s
+        refreshTabs(); updateStrip(); autoShift()
+    }
     private fun flush() { if (buf.isNotEmpty()) { currentInputConnection?.finishComposingText(); buf.setLength(0); updateStrip() } }
-    private fun commit(s: String) { flush(); currentInputConnection?.commitText(s, 1) }
+    private fun commit(s: String) { flush(); enBuf.setLength(0); currentInputConnection?.commitText(s, 1); updateStrip() }
+
     private fun pick(w: String) {
         val ic = currentInputConnection ?: return
-        ic.setComposingText(w, 1); ic.finishComposingText(); buf.setLength(0); ic.commitText(" ", 1); updateStrip()
+        ic.beginBatchEdit()
+        ic.setComposingText(w, 1); ic.finishComposingText(); ic.commitText(" ", 1)
+        ic.endBatchEdit()
+        buf.setLength(0); lastSpaceAt = 0; updateStrip()
+    }
+
+    /** Replace the English word being typed with the chosen completion (only if the text before the cursor really is that word). */
+    private fun pickEn(w: String) {
+        val ic = currentInputConnection ?: return
+        val n = enBuf.length
+        ic.beginBatchEdit()
+        val before = ic.getTextBeforeCursor(n, 0)
+        if (n > 0 && before != null && before.toString().equals(enBuf.toString(), ignoreCase = true)) ic.deleteSurroundingText(n, 0)
+        ic.commitText("$w ", 1)
+        ic.endBatchEdit()
+        enBuf.setLength(0); lastSpaceAt = 0; updateStrip(); autoShift()
     }
 
     override fun onKey(c: Char) {
         val ic = currentInputConnection ?: return
         if (sinhala && !secure && c.isLetter()) {
-            buf.append(c); ic.setComposingText(Transliterator.transliterate(buf.toString()), 1); updateStrip()
-        } else { flush(); ic.commitText(c.toString(), 1) }
+            buf.append(c); ic.setComposingText(Transliterator.transliterate(buf.toString()), 1); updateStrip(); return
+        }
+        flush()
+        if (!sinhala && !secure && (c.isLetter() || (c == '\'' && enBuf.isNotEmpty()))) enBuf.append(c) else enBuf.setLength(0)
+        ic.commitText(c.toString(), 1)
+        updateStrip()
+        if (!sinhala && (c == '.' || c == '!' || c == '?')) autoShift()
     }
 
     override fun onSpace() {
         val ic = currentInputConnection ?: return
+        ic.beginBatchEdit()
         if (buf.isNotEmpty()) {
-            if (Prefs.bool(this, "autocorrect", true)) Dict.exact(buf.toString())?.let { ic.setComposingText(it, 1) }
-            ic.finishComposingText(); buf.setLength(0); updateStrip()
+            if (prefAutocorrect) Dict.exact(buf.toString())?.let { ic.setComposingText(it, 1) }
+            ic.finishComposingText(); buf.setLength(0)
         }
-        ic.commitText(" ", 1)
+        val now = SystemClock.uptimeMillis()
+        var dot = false
+        if (prefDblSpace && now - lastSpaceAt < 450) {          // double space -> ". "
+            val before = ic.getTextBeforeCursor(2, 0)
+            if (before != null && before.length == 2 && before[1] == ' ' && !before[0].isWhitespace() && before[0] !in ".,!?;:") {
+                ic.deleteSurroundingText(1, 0); ic.commitText(". ", 1); dot = true
+            }
+        }
+        if (!dot) ic.commitText(" ", 1)
+        ic.endBatchEdit()
+        lastSpaceAt = if (dot) 0 else now
+        enBuf.setLength(0); updateStrip(); autoShift()
     }
 
     override fun onBackspace() {
@@ -341,10 +463,27 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             buf.deleteCharAt(buf.length - 1)
             if (buf.isEmpty()) ic.commitText("", 1) else ic.setComposingText(Transliterator.transliterate(buf.toString()), 1)
             updateStrip()
-        } else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+        } else {
+            if (enBuf.isNotEmpty()) enBuf.setLength(enBuf.length - 1)
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+            updateStrip()
+        }
     }
 
-    override fun onEnter() { flush(); sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER) }
+    override fun onEnter() {
+        flush(); enBuf.setLength(0)
+        val ic = currentInputConnection ?: return
+        if (imeAction != 0 && imeAction != EditorInfo.IME_ACTION_NONE && imeAction != EditorInfo.IME_ACTION_UNSPECIFIED) ic.performEditorAction(imeAction)
+        else sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+        updateStrip(); autoShift()
+    }
+
+    override fun onCursor(dir: Int) {
+        flush(); enBuf.setLength(0)
+        sendDownUpKeyEvents(if (dir < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
+        updateStrip()
+    }
+
     override fun onLang() = setLang(!sinhala)
     override fun onPicker() = switchKeyboard()
 }

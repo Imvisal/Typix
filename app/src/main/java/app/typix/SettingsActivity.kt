@@ -253,6 +253,25 @@ class SettingsActivity : Activity() {
         }
         row("hints", "Sinhala key hints", true); row("autocorrect", "Auto-correct Singlish", true); row("sound", "Key sound", false, true)
         c.addView(q)
+
+        c.addView(label("How to type"))
+        val tips = listOf("mama" to "මම", "aa" to "ආ", "A" to "ඇ", "ii" to "ඊ", "th" to "ත", "dh" to "ද", "kh" to "ඛ", "q" to "ද",
+            "N" to "ණ", "L" to "ළ", "S" to "ෂ", "T" to "ඨ", "D" to "ඪ", "B" to "භ", "G" to "ඝ", "C" to "ඡ", "J" to "ඣ")
+        val grid = card(12, 12)
+        tips.chunked(3).forEachIndexed { ri, rowTips ->
+            val r = LinearLayout(this).apply { weightSum = 3f }
+            for (t in rowTips) {
+                val cellV = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), dp(10), dp(8), dp(10)) }
+                cellV.addView(tv(t.first, 15f, 500, soft), LinearLayout.LayoutParams(0, -2, 1f))
+                cellV.addView(tv("→", 14f, 400, soft).apply { setPadding(dp(4), 0, dp(8), 0) })
+                cellV.addView(tv(t.second, 22f, 600, accentText(th)))
+                r.addView(cellV, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+            grid.addView(r)
+            if (ri < (tips.size - 1) / 3) grid.addView(divider())
+        }
+        c.addView(grid)
+        c.addView(tv("Tip: Shift + a types ඇ. Press and hold a letter for its number, hold \".\" for punctuation, and swipe on the space bar to move the cursor.", 13.5f, 400, soft).apply { setPadding(dp(4), dp(12), dp(4), 0); setLineSpacing(0f, 1.15f) })
     }
 
     private fun themes(c: LinearLayout, th: Theme) {
@@ -289,11 +308,24 @@ class SettingsActivity : Activity() {
         k.addView(tv("App theme", 17f).apply { setPadding(dp(4), 0, 0, dp(10)) })
         k.addView(seg(th, listOf("Auto", "Light", "Dark"), Prefs.appMode(this)) { Prefs.setAppMode(this, it); show(2) })
         c.addView(k)
+        c.addView(label("Language"))
+        k = card(); k.setPadding(dp(16), dp(14), dp(16), dp(14))
+        k.addView(tv("Start typing in", 17f).apply { setPadding(dp(4), 0, 0, dp(10)) })
+        k.addView(seg(th, listOf("සිංහල", "English"), Prefs.int(this, "startlang", 0)) { Prefs.setInt(this, "startlang", it); show(2) })
+        c.addView(k)
         c.addView(label("Typing"))
         k = card()
         switchRow(k, th, "borders", "Key outlines", "Draw a thin border around every key", false); k.addView(divider())
         switchRow(k, th, "hints", "Sinhala key hints", "Show the Sinhala letter on each key", true); k.addView(divider())
-        switchRow(k, th, "autocorrect", "Auto-correct Singlish", "Fix common words as you type", true)
+        switchRow(k, th, "autocorrect", "Auto-correct Singlish", "Fix common words as you type", true); k.addView(divider())
+        switchRow(k, th, "autocap", "Auto-capitalize", "Capital letter at the start of English sentences", true); k.addView(divider())
+        switchRow(k, th, "dblspace", "Double space for full stop", "Tap space twice to type \". \"", true); k.addView(divider())
+        switchRow(k, th, "swipecursor", "Space-bar cursor swipe", "Slide on the space bar to move the cursor", true)
+        c.addView(k)
+        c.addView(label("Suggestions"))
+        k = card()
+        switchRow(k, th, "ensugg", "English suggestions", "Word completions while typing English", true); k.addView(divider())
+        switchRow(k, th, "emojirow", "Emoji row", "Show your recent emojis above the keys", true)
         c.addView(k)
         c.addView(label("Feedback"))
         k = card()
@@ -317,7 +349,7 @@ class SettingsActivity : Activity() {
         c.addView(k)
         c.addView(label("About"))
         k = card(); k.setPadding(dp(20), dp(16), dp(20), dp(16))
-        k.addView(tv("Typix 0.4.2", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
+        k.addView(tv("Typix 0.5.1", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
         k.addView(tv("Typix has no internet permission. Nothing you type leaves this phone.", 14f, 400, soft).apply { setLineSpacing(0f, 1.1f) })
         c.addView(k)
     }

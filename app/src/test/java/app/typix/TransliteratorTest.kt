@@ -15,5 +15,8 @@ class TransliteratorTest {
         assertEquals("ඇම්ම", Transliterator.transliterate("Amma"))
         assertEquals("කැම", Transliterator.transliterate("kAma"))
         assertEquals("ඇ", Transliterator.transliterate("ae"))
+        assertEquals("ද", Transliterator.transliterate("qa"))
+        assertEquals("ද්", Transliterator.transliterate("q"))
+        assertEquals("ධ", Transliterator.transliterate("Qa"))
     }
 }

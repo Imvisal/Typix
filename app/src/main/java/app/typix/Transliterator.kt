@@ -12,10 +12,10 @@ object Transliterator {
     )
     private val consonants = mapOf(
         "kh" to "ඛ", "gh" to "ඝ", "ch" to "ච", "th" to "ත", "dh" to "ද", "sh" to "ශ",
-        "k" to "ක", "g" to "ග", "c" to "ච", "j" to "ජ", "t" to "ට", "d" to "ඩ", "n" to "න",
+        "k" to "ක", "q" to "ද", "g" to "ග", "c" to "ච", "j" to "ජ", "t" to "ට", "d" to "ඩ", "n" to "න",
         "p" to "ප", "b" to "බ", "m" to "ම", "y" to "ය", "r" to "ර", "l" to "ල", "w" to "ව",
         "v" to "ව", "s" to "ස", "h" to "හ", "f" to "ෆ",
-        "K" to "ඛ", "N" to "ණ", "L" to "ළ", "S" to "ෂ", "T" to "ඨ", "D" to "ඪ", "B" to "භ", "G" to "ඝ", "C" to "ඡ", "J" to "ඣ"
+        "K" to "ඛ", "Q" to "ධ", "N" to "ණ", "L" to "ළ", "S" to "ෂ", "T" to "ඨ", "D" to "ඪ", "B" to "භ", "G" to "ඝ", "C" to "ඡ", "J" to "ඣ"
     )
 
     private fun vowelAt(lc: String, i: Int) = vowels.firstOrNull { lc.startsWith(it.first, i) }
