@@ -190,6 +190,13 @@ class SettingsActivity : Activity() {
         } catch (e: Exception) { Toast.makeText(this, "Couldn't read or write that file", Toast.LENGTH_SHORT).show() }
     }
 
+    /** RAM used by this app's process (PSS = what Android counts as the app's real share), plus the Java heap part. */
+    private fun memoryText(): String {
+        val mi = android.os.Debug.MemoryInfo(); android.os.Debug.getMemoryInfo(mi)
+        val rt = Runtime.getRuntime()
+        return "RAM: ${mi.totalPss / 1024} MB   ·   Java heap: ${(rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)} MB"
+    }
+
     private var scroller: ScrollView? = null
     private fun show(t: Int) {
         val keepY = if (t == tab) scroller?.scrollY ?: 0 else 0
@@ -454,10 +461,18 @@ class SettingsActivity : Activity() {
             setOnClickListener { for (n in listOf("keyshape", "keygap", "keytext", "onehand")) Prefs.setInt(this@SettingsActivity, n, if (n == "keygap" || n == "keytext") 1 else 0); Prefs.setHeightIdx(this@SettingsActivity, 1); show(2) }
         })
         c.addView(k)
+        c.addView(label("Performance"))
+        k = card(); k.setPadding(dp(20), dp(16), dp(20), dp(16))
+        val mem = tv(memoryText(), 17f, 600)
+        k.addView(mem)
+        k.addView(tv("This is the memory the whole Typix app (keyboard and settings) uses right now. Tap to refresh.", 13f, 400, soft).apply { setPadding(0, dp(4), 0, 0) })
+        k.setOnClickListener { mem.text = memoryText() }
+        c.addView(k)
         c.addView(label("About"))
         k = card(); k.setPadding(dp(20), dp(16), dp(20), dp(16))
-        k.addView(tv("Typix 0.6.0", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
-        k.addView(tv("Typix has no internet permission. Nothing you type leaves this phone.", 14f, 400, soft).apply { setLineSpacing(0f, 1.1f) })
+        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+        k.addView(tv("Typix $ver", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
+        k.addView(tv("Nothing you type leaves this phone. Voice typing uses your phone's own speech recognizer.", 14f, 400, soft).apply { setLineSpacing(0f, 1.1f) })
         c.addView(k)
     }
 }
