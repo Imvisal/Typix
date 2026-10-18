@@ -93,7 +93,10 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         th = Prefs.theme(this); loadPrefs()
         window?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         val r = dp(28).toFloat()
-        val root = LinearLayout(this).apply {
+        val root = object : LinearLayout(this) {
+            override fun onDraw(c: Canvas) { super.onDraw(c); KbBackground.draw(c, this@TypixIME, th, width.toFloat(), height.toFloat(), r) }
+        }.apply {
+            setWillNotDraw(false)
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { setColor(th.bg); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
             setPadding(dp(4), dp(6), dp(4), dp(2))
@@ -510,6 +513,12 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             showKeys(); keys?.applySettings(); keys?.sinhala = sinhala; keys?.enterKind = enterKind()
             refreshTabs(); refreshEmojiRow(); updateStrip(); autoShift()
         }
+    }
+
+    /** The editor moved the cursor away from the word we were composing (user tapped elsewhere): forget that word, never re-insert it. */
+    override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        if (buf.isNotEmpty() && candidatesStart >= 0 && (newSelStart < candidatesStart || newSelStart > candidatesEnd)) { buf.setLength(0); updateStrip() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) { stopVoice(); super.onFinishInputView(finishingInput) }

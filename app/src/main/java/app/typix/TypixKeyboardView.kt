@@ -121,12 +121,12 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         for (k in keys) {
             k.cell.set(k.x * u, top + k.row * rh, (k.x + k.w) * u, top + (k.row + 1) * rh)     // full touch cell: no dead gaps between keys
             k.r.set(k.x * u + padX, top + k.row * rh + padY, (k.x + k.w) * u - padX, top + (k.row + 1) * rh - padY)
-            if (s != 1f) { val cx = k.r.centerX(); val cy = k.r.centerY(); val hw = k.r.width() / 2 * s; val hh = k.r.height() / 2 * s; k.r.set(cx - hw, cy - hh, cx + hw, cy + hh) }
+            if (s != 1f) { val cx = k.r.centerX(); val hw = minOf(k.r.width() / 2 * s, k.cell.width() / 2 - 1 * d); k.r.set(cx - hw, k.r.top, cx + hw, k.r.bottom) }   // width only: height follows the row height
         }
     }
 
     private var gap = 1f
-    private var sizePct = 100; private var numColor = 0
+    private var sizePct = 100; private var numColor = 0; private var hasBg = false
     private var rad = 12f * 3f
 
     fun applySettings() {
@@ -135,11 +135,14 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         val keyC = Prefs.ov(context, t.name, "key").let { if (it != 0) it else t.key }
         val textC = Prefs.ov(context, t.name, "text").let { if (it != 0) it else t.text }
         numColor = Prefs.ov(context, t.name, "num")
-        sizePct = Prefs.ov(context, t.name, "size", 100).coerceIn(70, 108)
+        sizePct = Prefs.ov(context, t.name, "size", 100).coerceIn(70, 120)
+        hasBg = KbBackground.get(context, t.name) != null
+        val ka = Prefs.ov(context, t.name, "kalpha", 100).coerceIn(20, 100)
         bg.color = t.bg; accentP.color = t.accent; accent = t.accent; textColor = textC; onAccent = t.onAccent
         fillP.color = keyC
         specialP.color = if (lumaOf(t.bg) < 128) mixColor(keyC, t.bg, 0.25f) else mixColor(keyC, t.bg, 0.55f)
         litP.color = mixColor(keyC, textC, if (lumaOf(t.bg) < 128) 0.16f else 0.10f)
+        fillP.alpha = ka * 255 / 100; specialP.alpha = ka * 255 / 100; litP.alpha = minOf(100, ka + 25) * 255 / 100
         strokeP.color = mixColor(keyC, textC, 0.22f)
         dimColor = mixColor(textC, t.bg, 0.45f)
         hintBase = mixColor(textC, t.bg, 0.55f); hintP.color = hintBase
@@ -166,7 +169,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private fun isDown(k: Key): Boolean { for (i in 0 until maxP) if (pk[i] === k) return true; return false }
 
     override fun onDraw(c: Canvas) {
-        c.drawPaint(bg)
+        if (!hasBg) c.drawPaint(bg)
         val upper = shift || caps
         for (k in keys) {
             val pressed = isDown(k)
@@ -276,6 +279,19 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         return best
     }
 
+    /** A fresh first finger means no finger is down any more: forget leftovers (a lost "up" event must never leave a key stuck or repeating). */
+    private fun resetTouch() {
+        removeCallbacks(rep); removeCallbacks(longPress)
+        for (j in 0 until maxP) { pk[j] = null; fired[j] = false }
+        lpId = -1; spaceId = -1; popupKey = null; popupSel = -1; invalidate()
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        // keys at the screen edges (q, p, a, l ...) must not be eaten by the back-swipe gesture
+        if (Build.VERSION.SDK_INT >= 29 && right > left) systemGestureExclusionRects = listOf(Rect(0, 0, right - left, minOf(bottom - top, (190 * d).toInt())))
+    }
+
     private fun repaint(k: Key) { k.r.roundOut(dirty); dirty.inset(-2, -2); invalidate(dirty) }
 
     private val vibrator: Vibrator? by lazy {
@@ -369,6 +385,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                if (e.actionMasked == MotionEvent.ACTION_DOWN) resetTouch()
                 val i = e.actionIndex; val id = e.getPointerId(i)
                 if (id >= maxP) return true
                 // a new finger: make sure earlier fingers' keys fire first, so typing order is kept

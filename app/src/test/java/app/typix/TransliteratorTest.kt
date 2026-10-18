@@ -22,6 +22,10 @@ class TransliteratorTest {
         assertEquals("බෑ", Transliterator.transliterate("bAa"))
         assertEquals("ඈ", Transliterator.transliterate("Aa"))
         assertEquals("කෑම", Transliterator.transliterate("kAama"))
+        assertEquals("ප්\u200Dරශ්න", Transliterator.transliterate("prashna"))
+        assertEquals("විද්\u200Dයා", Transliterator.transliterate("vidhyaa"))
+        assertEquals("පුත්\u200Dර", Transliterator.transliterate("puthra"))
+        assertEquals("කර්ම", Transliterator.transliterate("karma"))
     }
     @Test fun anusvara() { assertEquals("සං", Transliterator.transliterate("sax")); assertEquals("ං", Transliterator.transliterate("x")) }
 }

@@ -48,7 +48,7 @@ object Prefs {
     fun setAppMode(c: Context, m: Int) = sp(c).edit().putInt("appmode", m).apply()
     fun heightIdx(c: Context) = sp(c).getInt("height", 1).coerceIn(0, heights.size - 1)
     fun setHeightIdx(c: Context, i: Int) = sp(c).edit().putInt("height", i).apply()
-    fun rowDp(c: Context) = heights[heightIdx(c)].second
+    fun rowDp(c: Context): Int = (heights[heightIdx(c)].second * ov(c, theme(c).name, "hgt", 100).coerceIn(70, 160) / 100f).toInt().coerceIn(36, 96)
     private fun sp(c: Context) = c.getSharedPreferences("typix", Context.MODE_PRIVATE)
     fun theme(c: Context): Theme { val n = sp(c).getString("theme", "Ink"); return themes.firstOrNull { it.name == n } ?: themes[0] }
     fun setTheme(c: Context, n: String) = sp(c).edit().putString("theme", n).apply()
