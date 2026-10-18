@@ -560,8 +560,9 @@ class SettingsActivity : Activity() {
         c.addView(k)
         c.addView(label("About"))
         k = card(); k.setPadding(dp(20), dp(16), dp(20), dp(16))
-        k.addView(tv("Typix 0.6.0", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
-        k.addView(tv("Typix has no internet permission. Nothing you type leaves this phone.", 14f, 400, soft).apply { setLineSpacing(0f, 1.1f) })
+        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+        k.addView(tv("Typix $ver", 17f, 600).apply { setPadding(0, 0, 0, dp(4)) })
+        k.addView(tv("Nothing you type leaves this phone. Only your keyboard settings are saved to your account, and only if you sign in. Voice typing uses your phone's own speech recognizer.", 14f, 400, soft).apply { setLineSpacing(0f, 1.1f) })
         c.addView(k)
     }
 }
