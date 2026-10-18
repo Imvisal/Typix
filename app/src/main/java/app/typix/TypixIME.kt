@@ -32,7 +32,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         val r = rootView ?: return
         val side = (resources.displayMetrics.widthPixels * 0.18f).toInt()
         val h = Prefs.int(this, "onehand", 0)
-        r.setPadding(dp(4) + (if (h == 2) side else 0), dp(6), dp(4) + (if (h == 1) side else 0), dp(2))
+        r.setPadding(dp(4) + (if (h == 2) side else 0), 0, dp(4) + (if (h == 1) side else 0), dp(2))
     }
     private lateinit var emojiRow: LinearLayout
     private val sug = arrayOfNulls<TextView>(3)
@@ -99,7 +99,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             setWillNotDraw(false)
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { setColor(th.bg); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
-            setPadding(dp(4), dp(6), dp(4), dp(2))
+            setPadding(dp(4), 0, dp(4), dp(2))
         }
         iconPanels.clear(); iconBoxes.clear(); emojiCells.clear()
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -144,7 +144,9 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         val top = FrameLayout(this)
         top.addView(topBar, FrameLayout.LayoutParams(-1, -1))
         top.addView(strip, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(4), 0, dp(4), 0) })
-        root.addView(top, LinearLayout.LayoutParams(-1, dp(46)))
+        val q = dp(28).toFloat()
+        top.background = GradientDrawable().apply { setColor(mixColor(th.bg, th.text, if (lumaOf(th.bg) < 128) 0.07f else 0.06f)); cornerRadii = floatArrayOf(q, q, q, q, 0f, 0f, 0f, 0f) }
+        root.addView(top, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(-dp(4), 0, -dp(4), dp(4)) })
         emojiRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         for (i in 0 until 7) {
             val t = TextView(this).apply { textSize = 22f; gravity = Gravity.CENTER; setOnClickListener { commit(text.toString()) } }
@@ -534,6 +536,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
 
     private fun setLang(s: Boolean) {
         flush(); enBuf.setLength(0); sinhala = s; keys?.sinhala = s
+        if (panel != 0) showKeys()
         refreshTabs(); updateStrip(); autoShift()
         voice?.let { if (it.active) { it.setLanguage(voiceLang()); hint("Listening · ${voiceLabel()}") } }
     }

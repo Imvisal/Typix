@@ -86,8 +86,8 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     }
 
     init {
-        val h = mapOf('q' to "ද", 'w' to "ව", 'e' to "එ", 'r' to "ර", 't' to "ත", 'y' to "ය", 'u' to "උ", 'i' to "ඉ",
-            'o' to "ඔ", 'p' to "ප", 'a' to "අ", 's' to "ස", 'd' to "ද", 'f' to "ෆ", 'g' to "ග", 'h' to "හ", 'j' to "ජ", 'k' to "ක",
+        val h = mapOf('q' to "ද", 'w' to "ව", 'e' to "එ", 'r' to "ර", 't' to "ට", 'y' to "ය", 'u' to "උ", 'i' to "ඉ",
+            'o' to "ඔ", 'p' to "ප", 'a' to "අ", 's' to "ස", 'd' to "ඩ", 'f' to "ෆ", 'g' to "ග", 'h' to "හ", 'j' to "ජ", 'k' to "ක",
             'l' to "ල", 'z' to "ශ", 'x' to "ං", 'c' to "ච", 'v' to "ව", 'b' to "බ", 'n' to "න", 'm' to "ම")
         for ((c, s) in h) hintTab[c.code] = s
         // Shift (capital) letters: A = ඇ, N = ණ, L = ළ ...
