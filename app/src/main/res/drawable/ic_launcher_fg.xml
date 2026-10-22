@@ -1,8 +1,10 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-  <path android:fillColor="#1B2140" android:pathData="M40,22h28a16,16 0 0 1 16,16v30a16,16 0 0 1 -16,16h-28a16,16 0 0 1 -16,-16v-30a16,16 0 0 1 16,-16z"/>
-  <group android:scaleX="0.8" android:scaleY="0.8" android:translateX="3.6" android:translateY="5.6">
-    <path android:strokeColor="#C8F135" android:strokeWidth="11" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54,33V68Q54,78 64,78H68M41,50H67"/>
-    <path android:fillColor="#EEF1FF" android:pathData="M78,46h7v32h-7z"/>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="120" android:viewportHeight="120">
+  <group android:scaleX="0.74" android:scaleY="0.74" android:pivotX="60" android:pivotY="60">
+  <path android:fillColor="#FFFFFF" android:pathData="M40.0,14.2h39.99999999999999a21.8,21.8 0 0 1 21.8,21.8v47.99999999999999a21.8,21.8 0 0 1 -21.8,21.8h-39.99999999999999a21.8,21.8 0 0 1 -21.8,-21.8v-47.99999999999999a21.8,21.8 0 0 1 21.8,-21.8z"/>
+  <path android:fillColor="#070A16" android:pathData="M40,22h40a20,20 0 0 1 20,20v42a20,20 0 0 1 -20,20h-40a20,20 0 0 1 -20,-20v-42a20,20 0 0 1 20,-20z"/>
+  <path android:fillColor="#1B2140" android:pathData="M40,16h40a20,20 0 0 1 20,20v40a20,20 0 0 1 -20,20h-40a20,20 0 0 1 -20,-20v-40a20,20 0 0 1 20,-20z"/>
+  <path android:strokeColor="#C8F135" android:strokeWidth="11" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M54,33V68Q54,78 64,78H68M41,50H67"/>
+  <path android:fillColor="#EEF1FF" android:pathData="M78,46h7v32h-7z"/>
+  <path android:fillColor="#C8F135" android:pathData="M46.5,85h27.0a2.5,2.5 0 0 1 2.5,2.5v0.0a2.5,2.5 0 0 1 -2.5,2.5h-27.0a2.5,2.5 0 0 1 -2.5,-2.5v-0.0a2.5,2.5 0 0 1 2.5,-2.5z"/>
   </group>
-  <path android:fillColor="#C8F135" android:pathData="M42,74h24a2,2 0 0 1 2,2a2,2 0 0 1 -2,2h-24a2,2 0 0 1 -2,-2a2,2 0 0 1 2,-2z"/>
 </vector>
