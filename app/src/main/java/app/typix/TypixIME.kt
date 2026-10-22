@@ -99,7 +99,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
             setWillNotDraw(false)
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply { setColor(th.bg); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
-            setPadding(dp(4), 0, dp(4), dp(2))
+            setPadding(dp(4), 0, dp(4), dp(2)); clipToPadding = false; clipChildren = false
         }
         iconPanels.clear(); iconBoxes.clear(); emojiCells.clear()
         val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
