@@ -39,7 +39,15 @@ object Prefs {
         Theme("Ocean", 0xFF0B2540.toInt(), 0xFF14395F.toInt(), 0xFF4CC9F0.toInt(), 0xFFEEF1FF.toInt()),
         Theme("Ember", 0xFF1C1210.toInt(), 0xFF33201A.toInt(), 0xFFFF7A45.toInt(), 0xFFFFEFE8.toInt()),
         Theme("Mint", 0xFFDDF0E8.toInt(), 0xFFFFFFFF.toInt(), 0xFF12A37B.toInt(), 0xFF10281F.toInt()),
-        Theme("Plum", 0xFF1E1030.toInt(), 0xFF35194F.toInt(), 0xFFE879F9.toInt(), 0xFFF6E8FF.toInt())
+        Theme("Plum", 0xFF1E1030.toInt(), 0xFF35194F.toInt(), 0xFFE879F9.toInt(), 0xFFF6E8FF.toInt()),
+        Theme("Slate", 0xFF2A2D31.toInt(), 0xFF3F444A.toInt(), 0xFF8AB4F8.toInt(), 0xFFE8EAED.toInt()),
+        Theme("Midnight", 0xFF000000.toInt(), 0xFF1A1A1C.toInt(), 0xFF34D399.toInt(), 0xFFF2F2F2.toInt()),
+        Theme("Sky", 0xFFDCEBFA.toInt(), 0xFFFFFFFF.toInt(), 0xFF1E88E5.toInt(), 0xFF0F2438.toInt()),
+        Theme("Rose", 0xFFF8E3EA.toInt(), 0xFFFFFFFF.toInt(), 0xFFE11D69.toInt(), 0xFF3A1422.toInt()),
+        Theme("Forest", 0xFF10241A.toInt(), 0xFF1D3A2A.toInt(), 0xFFA3E635.toInt(), 0xFFE9F5EC.toInt()),
+        Theme("Sand", 0xFFF1E8D8.toInt(), 0xFFFFFBF2.toInt(), 0xFFB45309.toInt(), 0xFF2E2415.toInt()),
+        Theme("Sunset", 0xFF2B1530.toInt(), 0xFF45224A.toInt(), 0xFFFFB347.toInt(), 0xFFFFEEDB.toInt()),
+        Theme("Graphite", 0xFFE4E6EB.toInt(), 0xFFFFFFFF.toInt(), 0xFF374151.toInt(), 0xFF111827.toInt())
     )
     private const val SEP = "\u0001"
     val heights = listOf("Short" to 50, "Medium" to 58, "Tall" to 66, "Extra tall" to 74)

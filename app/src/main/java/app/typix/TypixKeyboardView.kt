@@ -266,7 +266,11 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     }
 
     // ---------- touch ----------
-    private fun hit(x: Float, y: Float): Key? {
+    /** Back to the letter page (from numbers / symbols), keeping the language. */
+    fun showLetters() { if (symbols) { symbols = false; page2 = false; shift = false; caps = false; build() } }
+
+    private fun hit(x0: Float, y0: Float): Key? {
+        val x = x0; val y = y0 - 3 * d      // thumbs land low on a key: bias the target up a little so fast typing hits the intended key
         for (k in keys) if (k.cell.contains(x, y)) return k          // touch cells tile the keyboard, so small / shrunk keys still catch every tap
         var best: Key? = null; var bd = Float.MAX_VALUE
         for (k in keys) {                                   // edges (e.g. left of "a", right of "l") and a little above / below: nearest key

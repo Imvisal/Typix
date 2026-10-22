@@ -92,7 +92,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     override fun onCreateInputView(): View {
         th = Prefs.theme(this); loadPrefs()
         window?.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-        val r = dp(28).toFloat()
+        val r = 0f
         val root = object : LinearLayout(this) {
             override fun onDraw(c: Canvas) { super.onDraw(c); KbBackground.draw(c, this@TypixIME, th, width.toFloat(), height.toFloat(), r) }
         }.apply {
@@ -144,7 +144,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
         val top = FrameLayout(this)
         top.addView(topBar, FrameLayout.LayoutParams(-1, -1))
         top.addView(strip, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(4), 0, dp(4), 0) })
-        val q = dp(28).toFloat()
+        val q = 0f
         top.background = GradientDrawable().apply { setColor(mixColor(th.bg, th.text, if (lumaOf(th.bg) < 128) 0.07f else 0.06f)); cornerRadii = floatArrayOf(q, q, q, q, 0f, 0f, 0f, 0f) }
         root.addView(top, LinearLayout.LayoutParams(-1, dp(46)).apply { setMargins(-dp(4), 0, -dp(4), dp(4)) })
         emojiRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -537,6 +537,7 @@ class TypixIME : InputMethodService(), TypixKeyboardView.Listener {
     private fun setLang(s: Boolean) {
         flush(); enBuf.setLength(0); sinhala = s; keys?.sinhala = s
         if (panel != 0) showKeys()
+        keys?.showLetters()
         refreshTabs(); updateStrip(); autoShift()
         voice?.let { if (it.active) { it.setLanguage(voiceLang()); hint("Listening · ${voiceLabel()}") } }
     }
