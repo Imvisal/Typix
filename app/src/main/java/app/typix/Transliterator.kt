@@ -30,7 +30,12 @@ object Transliterator {
         return null
     }
 
+    @Volatile private var lastIn = ""; @Volatile private var lastOut = ""
     fun transliterate(raw: String): String {
+        if (raw == lastIn) return lastOut
+        val r = convert(raw); lastIn = raw; lastOut = r; return r
+    }
+    private fun convert(raw: String): String {
         val input = raw.replace("Aa", "aae").replace("A", "ae")   // capital A = ඇ (shift + a); A + a = ඈ / ෑ  (nAa = නෑ, bAa = බෑ)
         val lc = input.lowercase()
         val out = StringBuilder()

@@ -70,6 +70,10 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
     private var popupKey: Key? = null; private var popupSel = -1
     private val popupChars = ".,?!:;-_'\"@"
     private val popupRect = RectF()
+    private var keyPopup = true
+    private val bubble = RectF()
+    private val bubbleP = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val bubbleT = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = face }
 
     private val rep = object : Runnable { override fun run() { l.onBackspace(); postDelayed(this, 42) } }
     private val longPress = object : Runnable {
@@ -149,7 +153,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         rowDp = Prefs.rowDp(context).toFloat(); requestLayout()
         hints = Prefs.bool(context, "hints", true); soundStyle = Prefs.int(context, "soundstyle", 0).coerceIn(0, 2)
         vibrate = Prefs.bool(context, "vibrate", false); vibStrength = Prefs.int(context, "vibstr", 1).coerceIn(0, 2); borders = Prefs.bool(context, "borders", false)
-        swipeCursor = Prefs.bool(context, "swipecursor", true)
+        swipeCursor = Prefs.bool(context, "swipecursor", true); keyPopup = Prefs.bool(context, "keypopup", true)
         gap = floatArrayOf(0.6f, 1f, 1.5f)[Prefs.int(context, "keygap", 1).coerceIn(0, 2)]
         rad = floatArrayOf(12f, 5f, 22f)[Prefs.int(context, "keyshape", 0).coerceIn(0, 2)] * d
         val ts = floatArrayOf(0.88f, 1f, 1.12f)[Prefs.int(context, "keytext", 1).coerceIn(0, 2)]
@@ -223,7 +227,32 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
                 }
             }
         }
+        if (keyPopup && popupKey == null) for (i in 0 until maxP) { val k = pk[i] ?: continue; if (k.code > 32 && !(k.code == '.'.code && false)) drawBubble(c, k, upper) }
         popupKey?.let { drawPopup(c, it) }
+    }
+
+    /** Key-press preview (Gboard style): the pressed character, enlarged above the finger. */
+    private fun bubbleRect(k: Key, out: RectF) {
+        val w = k.r.width() + 12 * d; val h = 50 * d
+        val cx = k.r.centerX()
+        var l = cx - w / 2; if (l < 2 * d) l = 2 * d; if (l + w > width - 2 * d) l = width - 2 * d - w
+        var t = k.r.top - h - 4 * d
+        if (t < 0f) t = 0f                                   // top row: the bubble stays inside the keyboard and covers the key
+        out.set(l, t, l + w, if (t == 0f) maxOf(h, k.r.bottom) else t + h)
+    }
+    private fun drawBubble(c: Canvas, k: Key, upper: Boolean) {
+        if (k.code <= 32) return
+        bubbleRect(k, bubble)
+        bubbleP.color = mixColor(fillP.color, textColor, 0.18f)
+        c.drawRoundRect(bubble, 14 * d, 14 * d, bubbleP)
+        strokeP.alpha = 255; c.drawRoundRect(bubble, 14 * d, 14 * d, strokeP)
+        bubbleT.color = textColor; bubbleT.textSize = 30 * d
+        val label = if (k.code in 97..122 && upper) k.upper else k.label
+        c.drawText(label, bubble.centerX(), bubble.centerY() + 10.5f * d, bubbleT)
+        if (k.code in 97..122 && sinhala && hints) {
+            val h = if (upper) shiftTab[k.code] else hintTab[k.code]
+            if (h != null) { hintP.color = accent; c.drawText(h, bubble.right - 6 * d, bubble.top + 14 * d, hintP) }
+        }
     }
 
     private fun drawEnter(c: Canvas, cx: Float, cy: Float) {
@@ -296,7 +325,12 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
         if (Build.VERSION.SDK_INT >= 29 && right > left) systemGestureExclusionRects = listOf(Rect(0, 0, right - left, minOf(bottom - top, (190 * d).toInt())))
     }
 
-    private fun repaint(k: Key) { k.r.roundOut(dirty); dirty.inset(-2, -2); invalidate(dirty) }
+    private val bRect = RectF(); private val dirty2 = Rect()
+    private fun repaint(k: Key) {
+        k.r.roundOut(dirty); dirty.inset(-2, -2)
+        if (keyPopup && k.code > 32) { bubbleRect(k, bRect); bRect.roundOut(dirty2); dirty2.inset(-3, -3); dirty.union(dirty2) }
+        invalidate(dirty)
+    }
 
     private val vibrator: Vibrator? by lazy {
         try {
