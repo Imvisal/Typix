@@ -13,10 +13,12 @@ class LogoView(ctx: Context, @Suppress("UNUSED_PARAMETER") accent: Int) : View(c
     private val a = Path().apply { moveTo(54f, 33f); lineTo(54f, 68f); quadTo(54f, 78f, 64f, 78f); lineTo(68f, 78f) }
     private val b = Path().apply { moveTo(41f, 50f); lineTo(67f, 50f) }
     override fun onDraw(c: Canvas) {
-        // only the keycap (no outer tile / border), cropped so it fills the view evenly
-        val s = width / 92f
-        c.save(); c.scale(s, s); c.translate(-14f, -14f)
+        // same as the app icon (Ink): dark tile, keycap with thin white outline, lime "t"
+        val s = width / 120f
+        c.save(); c.scale(s, s)
         p.style = Paint.Style.FILL
+        p.color = 0xFF0E1224.toInt(); c.drawRoundRect(0f, 0f, 120f, 120f, 26f, 26f, p)
+        c.scale(0.92f, 0.92f, 60f, 60f)
         p.color = 0xFFFFFFFF.toInt()   // thin white outline around the keycap
         c.drawRoundRect(18.2f, 14.2f, 101.8f, 105.8f, 21.8f, 21.8f, p)
         p.color = 0xFF070A16.toInt(); c.drawRoundRect(20f, 22f, 100f, 104f, 20f, 20f, p)
