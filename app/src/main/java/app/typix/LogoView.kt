@@ -14,9 +14,11 @@ class LogoView(ctx: Context, @Suppress("UNUSED_PARAMETER") accent: Int) : View(c
     private val b = Path().apply { moveTo(41f, 50f); lineTo(67f, 50f) }
     override fun onDraw(c: Canvas) {
         // only the keycap (no outer tile / border), cropped so it fills the view evenly
-        val s = width / 88f
-        c.save(); c.scale(s, s); c.translate(-16f, -16f)
+        val s = width / 92f
+        c.save(); c.scale(s, s); c.translate(-14f, -14f)
         p.style = Paint.Style.FILL
+        p.color = 0xFFFFFFFF.toInt()   // thin white outline around the keycap
+        c.drawRoundRect(18.2f, 14.2f, 101.8f, 105.8f, 21.8f, 21.8f, p)
         p.color = 0xFF070A16.toInt(); c.drawRoundRect(20f, 22f, 100f, 104f, 20f, 20f, p)
         p.color = 0xFF1B2140.toInt(); c.drawRoundRect(20f, 16f, 100f, 96f, 20f, 20f, p)
         p.style = Paint.Style.STROKE; p.strokeWidth = 11f; p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
