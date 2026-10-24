@@ -95,7 +95,7 @@ class TypixKeyboardView(ctx: Context, private val l: Listener) : View(ctx) {
             'l' to "ල", 'z' to "ශ", 'x' to "ං", 'c' to "ච", 'v' to "ව", 'b' to "බ", 'n' to "න", 'm' to "ම")
         for ((c, s) in h) hintTab[c.code] = s
         // Shift (capital) letters: A = ඇ, N = ණ, L = ළ ...
-        val s = mapOf('q' to "ධ", 'a' to "ඇ", 'k' to "ඛ", 'n' to "ණ", 'l' to "ළ", 's' to "ෂ", 'x' to "ං", 't' to "ඨ", 'd' to "ඪ", 'b' to "භ", 'g' to "ඝ", 'c' to "ඡ", 'j' to "ඣ")
+        val s = mapOf('q' to "ධ", 'a' to "ඇ", 'k' to "ඛ", 'n' to "ණ", 'l' to "ළ", 's' to "ෂ", 'x' to "ඞ", 't' to "ඨ", 'd' to "ඪ", 'b' to "භ", 'g' to "ඝ", 'c' to "ඡ", 'j' to "ඣ")
         for ((c, v) in s) shiftTab[c.code] = v
         build(); applySettings()
     }
